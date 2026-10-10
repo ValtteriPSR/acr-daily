@@ -13,7 +13,7 @@ import sys
 import unittest
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path[:0] = [str(ROOT / 'server_local'), str(ROOT / 'tests')]
+sys.path[:0] = [str(ROOT), str(ROOT / 'server_local'), str(ROOT / 'tests')]
 
 
 def main():
@@ -49,6 +49,7 @@ def main():
     from database import PostgresDatabase
     prefix = 'acr_test_' + secrets.token_hex(6) + '_'
     schemas = set()
+    databases = []
     original_connect = server.connect_database
 
     def connect(path):
@@ -57,7 +58,9 @@ def main():
             with psycopg.connect(url, autocommit=True, connect_timeout=15) as connection:
                 connection.execute(sql.SQL('CREATE SCHEMA {}').format(sql.Identifier(schema)))
             schemas.add(schema)
-        return PostgresDatabase(url, schema=schema)
+        database = PostgresDatabase(url, schema=schema)
+        databases.append(database)
+        return database
 
     server.connect_database = connect
     modules = ['test_server', 'test_seasons', 'test_admin', 'test_http',
@@ -68,6 +71,8 @@ def main():
         return 0 if result.wasSuccessful() else 1
     finally:
         server.connect_database = original_connect
+        for database in databases:
+            database.close()
         # Only schemas created by this invocation are disposable test data.
         if schemas:
             with psycopg.connect(url, autocommit=True, connect_timeout=15) as connection:

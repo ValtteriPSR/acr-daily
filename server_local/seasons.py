@@ -370,7 +370,7 @@ def set_rallies(store,season_id,event_ids):
                     (season_id,eid,ix,gp,dp,pp))
             store.db.execute('''INSERT OR IGNORE INTO season_member_assignments
                 (season_id,member_id,division_id,team_id)
-                SELECT DISTINCT ?,p.club_member_id,NULL,NULL FROM season_events se
+          SELECT DISTINCT ?,p.club_member_id,CAST(NULL AS INTEGER),CAST(NULL AS INTEGER) FROM season_events se
                 JOIN players p ON p.event_id=se.event_id
                 WHERE se.season_id=? AND p.club_member_id IS NOT NULL''',(season_id,season_id))
             store.db.execute('COMMIT')
