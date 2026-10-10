@@ -1,4 +1,6 @@
 FROM caddy:2.9 AS proxy
+# Render listens on an unprivileged port and disallows file capabilities.
+RUN apk add --no-cache libcap && setcap -r /usr/bin/caddy
 FROM python:3.13-slim
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /opt/acr
