@@ -71,6 +71,18 @@ class AdminHttpTests(unittest.TestCase):
         code, payload = self.send('POST','/api/admin/login', {'key':key}, {'X-ACR-Admin':'1'})
         self.assertEqual(code, 200, payload)
 
+    def test_discord_configuration_requires_admin_and_keeps_secrets_private(self):
+        url='https://discord.com/api/webhooks/123456789012345678/'+'a'*60
+        self.assertEqual(self.send('GET','/api/admin/discord')[0],401)
+        self.login()
+        self.assertEqual(self.send('POST','/api/admin/discord',{'webhook':url,'enabled':True})[0],403)
+        code,data=self.send('POST','/api/admin/discord',{'webhook':url,'enabled':True},{'X-ACR-Admin':'1'})
+        self.assertEqual(code,200);self.assertTrue(data['configured'])
+        self.assertNotIn('a'*60,json.dumps(data))
+        self.assertEqual(self.send('POST','/api/admin/discord',{'webhook':'https://discord.gg/test','enabled':True},{'X-ACR-Admin':'1'})[0],400)
+        audit=self.store.db.execute('SELECT details FROM admin_audit').fetchall()
+        self.assertNotIn('a'*60,str([dict(row) for row in audit]))
+
     def test_admin_auth_csrf_and_create_edit_delete(self):
         from admin_access import admin_path
         secret_path=admin_path(self.auth.key_path)

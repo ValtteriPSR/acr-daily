@@ -85,3 +85,7 @@ Existing nicknames can be linked to Steam with their saved legacy recovery code.
 The administrator key and browser password still protect the private panel.
 Steam sign-in does not grant administrator privileges. Public standings expose
 club nicknames, not Steam IDs. Keep database backups private.
+
+## Discord
+
+Open **Discord notifications** in the rally administrator panel. Save a text channel webhook, enable live standings and summaries, then send a test message. See [Discord setup](DISCORD.md). Webhook tokens never appear in status responses or audit records.

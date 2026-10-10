@@ -18,7 +18,7 @@ MIN_LAUNCHER_VERSION = os.environ.get('ACR_MIN_LAUNCHER_VERSION','0.2.0')
 
 
 def launcher_release_page(url):
-    """Old asset settings remain valid, but website navigation opens the release."""
+    """Accept existing release settings and always download the latest compiled installer."""
     from re import fullmatch
     parsed = urlsplit(url)
     if (parsed.scheme != 'https' or parsed.netloc != 'github.com'
@@ -28,12 +28,7 @@ def launcher_release_page(url):
     if not matched:
         raise ValueError('Use a GitHub release page or release asset URL')
     base = 'https://github.com/' + matched[1] + '/' + matched[2] + '/releases/'
-    route = matched[3]
-    if route.startswith('download/'):
-        return base + 'tag/' + matched[4]
-    if route.startswith('latest'):
-        return base + 'latest'
-    return base + route
+    return base + 'latest/download/ACR-Rally-Club-Setup.exe'
 
 
 def check_config():

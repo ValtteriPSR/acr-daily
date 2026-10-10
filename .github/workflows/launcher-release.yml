@@ -10,7 +10,7 @@ on:
         required: true
         type: string
       release_tag:
-        description: 'New release tag, for example v0.2.1 or v0.2.1-custom-domain'
+        description: 'New release tag, for example v0.2.2 or v0.2.2-custom-domain'
         required: true
         type: string
 permissions:

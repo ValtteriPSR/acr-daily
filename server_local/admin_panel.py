@@ -171,6 +171,8 @@ button.primary{background:#137eb1;border-color:#1c91ca}button.danger{border-colo
 <header><div><h1>ACR Rally Club <span class="pill">ADMIN</span></h1><span class="small">Rally configuration and Rally Weekend rules</span></div><div class="hstack"><a href="/admin/seasons">Seasons, divisions and teams →</a><a href="/">Results page ↗</a><button id="logout" class="hide">Sign out</button></div></header>
 <section id="login" class="card"><h2>Administrator sign-in</h2><p class="small">Find the key in the file <code>server_local\admin_key.txt</code> on the server computer. In cloud mode, use the ACR_ADMIN_KEY environment variable.</p><div class="hstack"><input id="adminKey" style="max-width:520px" type="password" placeholder="Administrator key" autocomplete="off"><button id="loginBtn" class="primary">Sign in</button></div></section>
 <div id="workspace" class="hide">
+<section class="card"><h2>Discord notifications</h2><p class="small">Create a webhook in your Discord text channel: Edit Channel → Integrations → Webhooks → New Webhook → Copy Webhook URL. A server invite does not allow posting messages.</p><label for="discordWebhook">Discord channel webhook URL (secret)</label><input id="discordWebhook" type="password" autocomplete="off" placeholder="Paste a webhook URL; leave blank to keep the saved URL"><div class="hstack"><label class="check"><input id="discordEnabled" type="checkbox">Enable Discord notifications</label><label class="check"><input id="discordLive" type="checkbox" checked>Live standings</label><label class="check"><input id="discordSummaries" type="checkbox" checked>Rally summaries</label><label for="discordLanguage">Message language</label><select id="discordLanguage"><option value="pl">Polski</option><option value="en">English</option></select></div><div class="hstack"><button id="discordSave">Save Discord settings</button><button id="discordTest">Send test message</button></div><p id="discordStatus" role="status"></p><p class="small">One live table per rally updates within about 15 seconds while the service is running. Telemetry is marked unverified. Summaries follow the closing time once active attempts finish. A sleeping free hosting service sends pending updates when it wakes up.</p></section>
+
 <section class="card"><div class="hstack spaced"><h2>Server rallies</h2><button id="newEvent">+ New rally</button></div><div id="events"></div></section>
 <section id="editor" class="card hide"><div class="hstack spaced"><h2 id="editTitle">New rally</h2><button id="closeEditor">Close editor</button></div>
 <div id="notice" role="status"></div>
@@ -203,7 +205,7 @@ async function request(url, method='GET', data=undefined){
 }
 async function refresh(){
  try{const [cat,events]=await Promise.all([request('/api/admin/catalog'),request('/api/admin/events')]);catalog=cat;allEvents=events.events;
- $('workspace').classList.remove('hide');$('login').classList.add('hide');$('logout').classList.remove('hide');renderEvents();}
+ $('workspace').classList.remove('hide');$('login').classList.add('hide');$('logout').classList.remove('hide');renderEvents();await loadDiscord();}
  catch(ex){$('workspace').classList.add('hide');$('login').classList.remove('hide');$('logout').classList.add('hide');if(ex.message!=='No administrator session')alert(ex.message)}
 }
 function renderEvents(){
@@ -270,6 +272,13 @@ $('location').onchange=()=>{stageRows=[];renderStages()};
 $('addStage').onclick=()=>{if(stageRows.length>=40)return alert('Maximum 40 stages');try{stageRows.push(blankStage());renderStages()}catch(ex){alert(ex.message)}};
 $('save').onclick=save;
 $('export').onclick=()=>{try{if(!editing)throw Error('Save the rally to the server first to receive its generated ID');const json=JSON.stringify(collect(),null,2);const blob=new Blob([json],{type:'application/json'});const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download=$('eventId').value+'.json';a.click();setTimeout(()=>URL.revokeObjectURL(u),1000)}catch(ex){notify(ex.message)}};
+function showDiscord(d){
+ $('discordEnabled').checked=d.enabled;$('discordLive').checked=d.live;$('discordSummaries').checked=d.summaries;$('discordLanguage').value=d.language;
+ $('discordStatus').textContent=(d.configured?'Webhook saved. ':'Webhook not configured. ')+(d.enabled?'Notifications enabled. ':'Notifications disabled. ')+(d.lastSent?'Last delivery: '+new Date(d.lastSent*1000).toLocaleString(document.documentElement.lang)+'. ':'')+(d.lastError||'');
+}
+async function loadDiscord(){showDiscord(await request('/api/admin/discord'));}
+$('discordSave').onclick=async()=>{try{showDiscord(await request('/api/admin/discord','POST',{webhook:$('discordWebhook').value,enabled:$('discordEnabled').checked,live:$('discordLive').checked,summaries:$('discordSummaries').checked,language:$('discordLanguage').value}));$('discordWebhook').value='';}catch(ex){$('discordStatus').textContent=ex.message}};
+$('discordTest').onclick=async()=>{try{await request('/api/admin/discord/test','POST',{});await loadDiscord();}catch(ex){$('discordStatus').textContent=ex.message}};
 refresh();
 </script></body></html>"""
 

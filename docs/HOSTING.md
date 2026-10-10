@@ -1,4 +1,4 @@
-# Move ACR Rally Club 0.2.1 to your hosting
+# Move ACR Rally Club 0.2.2 to your hosting
 
 All server components can run on another provider. Players and administrators
 still use a website; no server software runs on their personal computers.
@@ -36,10 +36,10 @@ Clone the public application branch:
 ```sh
 git clone --branch rally-club --single-branch https://github.com/ValtteriPSR/acr-daily.git
 cd acr-daily
-docker build -t acr-rally-club:0.2.1 -f deploy/Dockerfile .
+docker build -t acr-rally-club:0.2.2 -f deploy/Dockerfile .
 ```
 
-Alternatively, extract `ACR-Rally-Club-0.2.1-Source.zip` from the GitHub release
+Alternatively, extract `ACR-Rally-Club-0.2.2-Source.zip` from the GitHub release
 and run the last command from its root directory.
 
 Generate settings. Replace the domain and installer URL with your own values:
@@ -47,9 +47,9 @@ Generate settings. Replace the domain and installer URL with your own values:
 ```sh
 docker run --rm -it --user "$(id -u):$(id -g)" \
   --mount type=bind,source="$PWD/deploy",target=/configuration \
-  acr-rally-club:0.2.1 python deploy/configure_hosting.py \
+  acr-rally-club:0.2.2 python deploy/configure_hosting.py \
   --domain league.example.com \
-  --download-url https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.1-custom-domain \
+  --download-url https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.2-custom-domain \
   --postgres --output /configuration/.env
 ```
 
@@ -103,7 +103,7 @@ The provider should route to `PORT`, default 10000, on the container. Set:
 | `ADMIN_HTTP_PASSWORD` | Separate random password of at least 16 characters |
 | `ACR_GATEWAY_SECRET` | Random shared proxy secret |
 | `ACR_MIN_LAUNCHER_VERSION` | `0.2.0` |
-| `ACR_LAUNCHER_DOWNLOAD_URL` | GitHub release page containing an EXE compiled for the new origin |
+| `ACR_LAUNCHER_DOWNLOAD_URL` | GitHub release URL for the repository whose latest EXE is compiled for this origin |
 | `PORT` | The provider's assigned HTTP port |
 
 The supervisor hashes the HTTP password and runs Caddy and the backend.
@@ -128,9 +128,9 @@ DNS does not rewrite that address inside an installed client.
 1. In GitHub, open **Actions → Publish Windows launcher → Run workflow**.
 2. Select branch `rally-club`.
 3. Set `public_url` to `https://league.example.com`, with no path.
-4. Use a new tag, for example `v0.2.1-custom-domain`; never overwrite an old release.
+4. Use a new tag, for example `v0.2.2-custom-domain`; never overwrite an old release.
 5. Wait for the tests, Windows build and frozen import self-test to pass.
-6. Set the new server's download URL to that GitHub release page.
+6. Set the new server's download URL to that repository's release URL. The server resolves it to `releases/latest/download/ACR-Rally-Club-Setup.exe`; ensure that repository's latest release is built for the new public origin. Use a separate fork if you operate two domains simultaneously.
 7. Ask players to install it. Installation updates both the protocol handler and
    the stored server address. The EXE needs no administrator key or database URL.
 
@@ -183,3 +183,5 @@ preserving those same private files and volumes.
 
 References: [Docker Compose environment interpolation](https://docs.docker.com/compose/how-tos/environment-variables/variable-interpolation/)
 and [Caddy basic authentication](https://caddyserver.com/docs/caddyfile/directives/basic_auth).
+
+Discord settings and delivery state are stored in PostgreSQL and migrate with the database. Allow outbound HTTPS to `discord.com`. The notifier runs inside the server process; on sleeping free hosting, scheduled summaries wait until the process wakes. See [Discord setup](DISCORD.md).

@@ -8,7 +8,7 @@ You need Windows 10/11, Assetto Corsa Rally installed through Steam, an internet
 connection and the club launcher. You do not need Python, Git or a local server.
 
 1. Download **ACR-Rally-Club-Setup.exe** from the website's launcher button or
-   [GitHub Releases](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.1).
+   [GitHub Releases](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.2).
 2. Run the installer once to register `acrclub://` links.
 3. Open **My profile → Sign in through Steam**. Sign in on the official Steam
    website and confirm the return to the club. On the first visit, choose your
@@ -17,11 +17,7 @@ connection and the club launcher. You do not need Python, Git or a local server.
    Your account, rally entries, attempts and results stay attached to your Steam
    identity. Use the same Steam account on another browser or computer.
 
-The download button opens the GitHub release page. Expand **Assets** and choose
-`ACR-Rally-Club-Setup.exe`; the website does not start a direct EXE download.
-If you had a club account before Steam login, sign in through Steam first and use
-**Link an existing club account** with your old nickname and recovery code.
-This preserves the old account's entries, results and team/division assignments.
+The website download button downloads the latest compiled installer directly from GitHub. You do not need to open GitHub or compile any files. Your browser may save the file automatically or ask where to save it, according to its download settings.
 
 If the championship uses divisions, wait for the organizer to assign yours.
 

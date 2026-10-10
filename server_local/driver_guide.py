@@ -8,14 +8,14 @@ def page():
 <section class="hero"><span class="eyebrow">Driver guide / Online start</span>
 <h1>How to start in ACR Rally Club?</h1>
 <p>Install the launcher once. Then start rallies using the RUN button on the club website. The application prepares all Rally Weekend settings.</p>
-<p><a class="btn-link" href="/download" target="_blank" rel="noopener noreferrer">⬇ WINDOWS LAUNCHER ON GITHUB</a>　 <a class="btn-link" href="/club">Sign in through Steam →</a></p>
+<p><a class="btn-link" href="/download">⬇ DOWNLOAD WINDOWS LAUNCHER</a>　 <a class="btn-link" href="/club">Sign in through Steam →</a></p>
 </section>
 <section class="card"><span class="section-kicker">Before your first rally</span><h2>What do you need?</h2>
 <p>A Windows 10/11 computer, Assetto Corsa Rally installed through Steam, an internet connection and the club launcher. You do not need Python, Git or .bat files to use the website.</p>
 <p>The launcher runs locally because an application on your computer is needed to prepare the game save, start Steam and read telemetry.</p></section>
 <section class="card"><span class="section-kicker">Step by step</span><h2>6 steps to start</h2>
 <ol>
-<li><strong>Install the launcher:</strong> open <a href="/download" target="_blank" rel="noopener noreferrer">GitHub Releases</a>, download ACR-Rally-Club-Setup.exe under Assets, then run the installer and confirm registration of the protocol <code>acrclub://</code>. The installer does not require you to compile the application.</li>
+<li><strong>Install the launcher:</strong> click <a href="/download">Download launcher</a> to download the latest ACR-Rally-Club-Setup.exe, then run the installer and confirm registration of the protocol <code>acrclub://</code>. The installer does not require you to compile the application.</li>
 <li><strong>Sign in through Steam:</strong> go to <a href="/club">My profile</a>, sign in on Steam and choose your club nickname. You can change it later while signed in; your entries and results remain on the same account.</li>
 <li><strong>Check your division:</strong> if the season uses divisions, wait for the administrator to assign yours. You cannot start without an assignment.</li>
 <li><strong>Enter the rally (you can register before it opens):</strong> open <a href="/">Rallies</a>, choose a round and click <strong>REGISTER FOR RALLY</strong>. Check the dates, cars, stages, weather and rules.</li>

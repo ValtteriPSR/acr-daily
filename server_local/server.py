@@ -43,6 +43,7 @@ from seasons import (install as install_seasons, club_register, club_recover,
                      add_group, rename_group, delete_group, set_team_capacity, assign_member, scoring,
                      club_page, steam_finish, change_nickname, club_logout)
 import steam_auth
+import discord_notifications
 from season_panel import html as season_admin_html
 from public_security import (PUBLIC_URL, DOWNLOAD_URL, check_config, gateway_ok,
                              check_host, browser_origin, remote_addr, RateLimiter, version_allowed,
@@ -150,6 +151,7 @@ class Store:
         """)
         install_tables(self)
         install_seasons(self)
+        discord_notifications.install(self)
         self.db.execute('''CREATE TABLE IF NOT EXISTS admin_audit (
           id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, peer TEXT NOT NULL,
           action TEXT NOT NULL, event_id TEXT, details TEXT NOT NULL)''')
@@ -526,7 +528,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
         evs=store.listing()
         upcoming=sum(utc_epoch(ev['opensAt'])>now for ev in evs)
         active=sum(utc_epoch(ev['opensAt'])<=now<=utc_epoch(ev['closesAt']) for ev in evs)
-        content=(tr('<section class="hero"><span class="eyebrow">Assetto Corsa Rally · Club competition</span><h1>Rallies and events</h1><p>Choose a rally, read the rules and start with one click. Stages, standings and club results in one place.</p><p><a class="btn-link" href="/download" target="_blank" rel="noopener noreferrer">⬇ WINDOWS LAUNCHER ON GITHUB</a>\u3000<a class="btn-link" href="/guide">Getting started →</a></p><div class="stats"><div class="stat"><strong>')+str(len(evs))+tr('</strong><span>Rallies</span></div><div class="stat"><strong>')+str(active)+tr('</strong><span>Live</span></div><div class="stat"><strong>')+str(upcoming)+tr('</strong><span>Scheduled</span></div></div></section>'))
+        content=(tr('<section class="hero"><span class="eyebrow">Assetto Corsa Rally · Club competition</span><h1>Rallies and events</h1><p>Choose a rally, read the rules and start with one click. Stages, standings and club results in one place.</p><p><a class="btn-link" href="/download">⬇ DOWNLOAD WINDOWS LAUNCHER</a>\u3000<a class="btn-link" href="/guide">Getting started →</a></p><div class="stats"><div class="stat"><strong>')+str(len(evs))+tr('</strong><span>Rallies</span></div><div class="stat"><strong>')+str(active)+tr('</strong><span>Live</span></div><div class="stat"><strong>')+str(upcoming)+tr('</strong><span>Scheduled</span></div></div></section>'))
         if member:
             content+=(tr('<section class="card"><span class="section-kicker">Your profile</span>Welcome, <strong>')+escape(member['nickname'])+
                       tr('</strong>. <a href="/club">View club account →</a></section>'))
@@ -906,6 +908,9 @@ def make_handler(store, admin=None, catalog_root=None):
                     self._require_admin_local()
                     return self._write(200, private_admin_page(season_admin_html(), secret_admin_path), 'text/html; charset=utf-8',
                         {'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'"})
+                if path == '/api/admin/discord':
+                    self._require_admin()
+                    return self._write(200, discord_notifications.status(store))
                 if path == '/api/admin/seasons':
                     self._require_admin()
                     return self._write(200, {'seasons':list_seasons(store)})
@@ -961,7 +966,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200, {'events': store.admin_listing()})
                 if path == '/launcher':
                     from site_theme import shell
-                    info = (tr('<section class="hero"><span class="eyebrow">Start a rally / Windows</span><h1>ACR Club Launcher</h1><p>Install once. Then start rallies with one click on RUN RALLY.</p><p><a class="btn-link" href="/download" target="_blank" rel="noopener noreferrer">⬇ Download Windows installer on GitHub</a></p></section><section class="card"><h2>How to get started?</h2><p>You do not need Python or .bat files. Download the .EXE, run it and register the acrclub:// protocol.</p><p>Sign in through Steam, choose a club nickname and a rally and click RUN RALLY. The launcher prepares the save and starts ACR through Steam.</p><p>Navigate manually to START STAGE. Details: <a href="/guide">driver guide →</a></p></section>'))
+                    info = (tr('<section class="hero"><span class="eyebrow">Start a rally / Windows</span><h1>ACR Club Launcher</h1><p>Install once. Then start rallies with one click on RUN RALLY.</p><p><a class="btn-link" href="/download">⬇ Download Windows installer</a></p></section><section class="card"><h2>How to get started?</h2><p>You do not need Python or .bat files. Download the .EXE, run it and register the acrclub:// protocol.</p><p>Sign in through Steam, choose a club nickname and a rally and click RUN RALLY. The launcher prepares the save and starts ACR through Steam.</p><p>Navigate manually to START STAGE. Details: <a href="/guide">driver guide →</a></p></section>'))
                     return self._write(200, shell('ACR Rally Club — Launcher',info,active='launcher'),
                                        'text/html; charset=utf-8')
                 if path in ('/','/index.html'):
@@ -1078,6 +1083,13 @@ def make_handler(store, admin=None, catalog_root=None):
                     if path == '/api/admin/logout':
                         admin.logout(self._admin_cookie())
                         return self._write(200, {'ok': True}, extra_headers={'Set-Cookie': admin.expired_cookie()})
+                    if path == '/api/admin/discord':
+                        out=discord_notifications.configure(store,data)
+                        store.audit(self.client_address[0],'discord_config',None,{'enabled':out['enabled']})
+                        return self._write(200,out)
+                    if path == '/api/admin/discord/test':
+                        self._limit(path,3)
+                        return self._write(200,discord_notifications.test_connection(store))
                     if path == '/api/admin/seasons':
                         out=save_season(store,data)
                         store.audit(self.client_address[0],'season_create',out['id'],{'config':data})
@@ -1200,12 +1212,17 @@ def main():
     else:
         print(f'KLUCZ ADMIN w pliku: {auth.key_path}', flush=True)
     print(f'Listening on {args.host}:{args.port}; Ctrl+C to stop', flush=True)
+    notifier = discord_notifications.Worker(store) if os.environ.get('ACR_DISCORD_NOTIFIER', '1') != '0' else None
+    if notifier:
+        notifier.start()
     try:
         server.serve_forever(poll_interval=.5)
     except KeyboardInterrupt:
         print('\nBye')
     finally:
         server.server_close()
+        if notifier:
+            notifier.stop()
         store.db.close()
 
 if __name__ == '__main__':

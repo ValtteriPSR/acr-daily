@@ -163,11 +163,11 @@ class SteamIdentityTests(unittest.TestCase):
         club_logout(self.store,account['token'])
         self.assertIsNone(member_by_cookie(self.store,account['token']))
 
-    def test_download_opens_github_release_instead_of_asset(self):
+    def test_download_redirects_to_latest_installer(self):
         self.assertEqual(launcher_release_page('https://github.com/example/club/releases/download/v0.2.1/setup.exe'),
-                         'https://github.com/example/club/releases/tag/v0.2.1')
+                         'https://github.com/example/club/releases/latest/download/ACR-Rally-Club-Setup.exe')
         self.assertEqual(launcher_release_page('https://github.com/example/club/releases/latest/download/setup.exe'),
-                         'https://github.com/example/club/releases/latest')
+                         'https://github.com/example/club/releases/latest/download/ACR-Rally-Club-Setup.exe')
         with self.assertRaises(ValueError):launcher_release_page('https://attacker.com/setup.exe')
 
 

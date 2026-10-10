@@ -45,8 +45,8 @@ errors are localized separately. Language state must never leak between requests
 ## Build and publish the Windows installer
 
 Use **Actions → Publish Windows launcher → Run workflow** on `rally-club`.
-Supply the public HTTPS club origin and a new release tag, such as `v0.2.1`.
-The project release and client version are `0.2.1`. Client `0.2.0` remains compatible.
+Supply the public HTTPS club origin and a new release tag, such as `v0.2.2`.
+The project release and client version are `0.2.2`. Client `0.2.0` remains compatible.
 The release includes the compiled EXE, a portable source ZIP and SHA256 checksums.
 
 The workflow configures the launcher origin, downloads the six pinned upstream
