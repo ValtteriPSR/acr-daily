@@ -1,19 +1,37 @@
 # ACR Rally Club — poradnik uruchomienia i użytkowania
 
-## Stan tej paczki
+## Gotowe adresy
 
-To wersja przygotowana do wdrożenia na Render + Neon. Samo pobranie archiwum nie
-publikuje strony. Gotowy EXE powstanie dopiero po poprawnym zakończeniu wydania
-na GitHub Actions. Po wdrożeniu tę instrukcję należy uzupełnić rzeczywistym
-adresem strony i prywatnego panelu.
+- Strona klubu: https://acr-rally-club.onrender.com/
+- Profil i rejestracja gracza: https://acr-rally-club.onrender.com/club
+- Pobranie gotowego klienta: https://acr-rally-club.onrender.com/download
+- Wydanie EXE: https://github.com/ValtteriPSR/acr-daily/releases/tag/v6.3.1-cloud.1
+- Repozytorium: https://github.com/ValtteriPSR/acr-daily
+- Panel usługi: https://dashboard.render.com/web/srv-db5588ad0e5s73e8d0f0
 
-Repozytorium: https://github.com/ValtteriPSR/acr-daily
-Gałąź aplikacji i wdrożenia: `rally-club`. To prawdziwy fork ACR Daily.
+Gałąź aplikacji i wdrożenia: `rally-club`. Repozytorium jest prawdziwym forkiem
+ACR Daily. Usługa Render i baza Neon korzystają z planów Free.
+
+10 października 2026 wdrożono aplikację i opublikowano instalator Windows
+(11,6 MB). Przeszły 84 testy SQLite, 38 testów PostgreSQL oraz test importów
+skompilowanego EXE na Windows. Sprawdzono działające `/healthz`, logowanie
+administratora i odczyt katalogu, sezonów, rajdów i klubowiczów na serwerze.
+Pełny przejazd z grą wymaga sprawdzenia na komputerze z Assetto Corsa Rally.
 
 ## Co uruchamia administrator
 
 Otwiera stronę klubu albo prywatny adres panelu w przeglądarce. Nie uruchamia
 żadnego serwera na swoim komputerze. Usługa Render i baza Neon pracują w chmurze.
+
+Aby wejść do panelu po raz pierwszy:
+
+1. Zaloguj się do Render i otwórz podany powyżej panel usługi `acr-rally-club`.
+2. W zakładce **Environment** odsłoń wartości `ACR_ADMIN_PATH`,
+   `ADMIN_HTTP_PASSWORD` i `ACR_ADMIN_KEY`.
+3. Do adresu `https://acr-rally-club.onrender.com` dopisz dokładną wartość
+   `ACR_ADMIN_PATH` (zaczyna się od `/`) i otwórz otrzymany adres.
+4. W oknie logowania przeglądarki wpisz `admin` oraz `ADMIN_HTTP_PASSWORD`.
+5. Na stronie panelu wpisz `ACR_ADMIN_KEY`.
 
 Panel ma dwa zabezpieczenia:
 
@@ -80,7 +98,10 @@ uśpieniu serwera. Ponowne logowanie administratora po restarcie jest normalne.
 Nie uruchamiaj dodatkowego serwera na komputerze ani równoległej instancji
 klubu z tą samą bazą.
 
-Aktualizacja kodu na gałęzi wdrożenia uruchamia automatyczne wdrożenie Render.
+Po aktualizacji gałęzi `rally-club` sprawdź zakładkę Deploys w Render.
+Jeśli nowe wdrożenie nie wystartuje, wybierz **Manual Deploy → Deploy latest
+commit**. Automatyczne wdrażanie wymaga poprawnego połączenia repozytorium
+z Render; sam przełącznik Auto-Deploy nie potwierdza działania tego połączenia.
 Nie publikuj aktualizacji w trakcie rajdu: restart może przerwać aktywne próby.
 Zmiana klienta wymaga osobnego wydania EXE i sprawdzenia na Windows.
 

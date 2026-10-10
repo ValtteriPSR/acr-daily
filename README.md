@@ -5,6 +5,9 @@ Serwer i panel działają w chmurze. Gracz potrzebuje Assetto Corsa Rally na Win
 oraz gotowego klienta EXE pobranego ze strony klubu. Administrator obsługuje klub
 w przeglądarce, bez instalowania serwera, Pythona, Dockera ani narzędzi Git.
 
+Strona: https://acr-rally-club.onrender.com/  
+Gotowy instalator Windows: [wydanie v6.3.1-cloud.1](https://github.com/ValtteriPSR/acr-daily/releases/tag/v6.3.1-cloud.1).
+
 ## Wdrożenie darmowe
 
 - **Render Free**: aplikacja Python i chroniący ją Caddy, publiczny HTTPS.
