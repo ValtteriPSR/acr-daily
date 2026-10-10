@@ -1,0 +1,128 @@
+[
+  {
+    "id": "AlfaRomeoGTA1300",
+    "telemetry": "Alfa_Romeo_GTA",
+    "name": "Alfa Romeo Giulia GTA Junior 1300",
+    "cls": "H3",
+    "group": "Group 2/4"
+  },
+  {
+    "id": "MiniCooperS1275",
+    "telemetry": "Mini Cooper S 1275",
+    "name": "Mini Cooper S 1275",
+    "cls": "H3",
+    "group": "Group 2/4"
+  },
+  {
+    "id": "AlpineA110",
+    "telemetry": "Alpine_A110",
+    "name": "Alpine A110 1800",
+    "cls": "H2",
+    "group": "Group 2/4"
+  },
+  {
+    "id": "AudiQuattroGr4",
+    "telemetry": "Audi Quattro Gr4",
+    "name": "Audi Quattro Gr4",
+    "cls": "H1",
+    "group": "Group 2/4"
+  },
+  {
+    "id": "Fiat124Abarth",
+    "telemetry": "FIAT Abarth 124 Rally",
+    "name": "Fiat 124 Abarth",
+    "cls": "H2",
+    "group": "Group 2/4"
+  },
+  {
+    "id": "Fiat131Abarth",
+    "telemetry": "FIAT 131 Abarth",
+    "name": "Fiat 131 Abarth",
+    "cls": "H1",
+    "group": "Group 2/4"
+  },
+  {
+    "id": "LanciaFulviaHF",
+    "telemetry": "Lancia Fulvia Coupé HF 1.6",
+    "name": "Lancia Fulvia Coupe HF",
+    "cls": "H3",
+    "group": "Group 2/4"
+  },
+  {
+    "id": "LanciaStratosHF",
+    "telemetry": "Lancia Stratos HF",
+    "name": "Lancia Stratos HF",
+    "cls": "H1",
+    "group": "Group 2/4"
+  },
+  {
+    "id": "LanciaRally037Evo2",
+    "telemetry": "Lancia 037",
+    "name": "Lancia Rally 037 Evo2",
+    "cls": "B2",
+    "group": "Group B"
+  },
+  {
+    "id": "LanciaDeltaIntegraleEvo",
+    "telemetry": "Lancia Delta Integrale Evo",
+    "name": "Lancia Delta HF Integrale Evo",
+    "cls": "A8 EVO2",
+    "group": "Group A"
+  },
+  {
+    "id": "SubaruImprezaS3",
+    "telemetry": "Subaru Impreza S3",
+    "name": "Subaru Impreza S3",
+    "cls": "A8 EVO3",
+    "group": "Group A"
+  },
+  {
+    "id": "Peugeot306IIMaxiKitCar",
+    "telemetry": "Peugeot 306 II Maxi Kit",
+    "name": "Peugeot 306 Maxi",
+    "cls": "K11",
+    "group": "Group A"
+  },
+  {
+    "id": "Peugeot206",
+    "telemetry": "Peugeot 206 WRC",
+    "name": "Peugeot 206 WRC",
+    "cls": "WR EVO1",
+    "group": "Group WR"
+  },
+  {
+    "id": "CitroenXsaraWRC",
+    "telemetry": "Citroen Xsara WRC",
+    "name": "Citroen Xsara WRC",
+    "cls": "WR EVO2",
+    "group": "Group WR"
+  },
+  {
+    "id": "VWPoloGTIR5",
+    "telemetry": "VW Polo GTI R5",
+    "name": "VW Polo GTI R5",
+    "cls": "Rally2/R5",
+    "group": "Group R"
+  },
+  {
+    "id": "HyundaiI20NRally2",
+    "telemetry": "Hyundai i20N Rally2",
+    "name": "Hyundai i20 N Rally2",
+    "cls": "Rally2/R5",
+    "group": "Group R"
+  },
+  {
+    "id": "SkodaFabiaRSRally2",
+    "telemetry": "Skoda Fabia RS Rally2",
+    "name": "Skoda Fabia RS Rally2",
+    "cls": "Rally2/R5",
+    "group": "Group R"
+  },
+  {
+    "id": "Peugeot208Rally4",
+    "telemetry": "Peugeot 208 Rally4",
+    "name": "Peugeot 208 Rally4",
+    "cls": "Rally4",
+    "group": "Group R"
+  }
+]

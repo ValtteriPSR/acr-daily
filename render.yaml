@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: acr-rally-club
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./deploy/Dockerfile.render
+    dockerContext: .
+    healthCheckPath: /healthz
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: ACR_ADMIN_KEY
+        sync: false
+      - key: ACR_ADMIN_PATH
+        sync: false
+      - key: ACR_GATEWAY_SECRET
+        generateValue: true
+      - key: ADMIN_HTTP_PASSWORD
+        sync: false
+      - key: ACR_LAUNCHER_DOWNLOAD_URL
+        sync: false
+      - key: ACR_MIN_LAUNCHER_VERSION
+        value: 6.3.1

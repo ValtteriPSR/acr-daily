@@ -1,0 +1,23 @@
+{
+    auto_https off
+    admin off
+}
+:{$PORT} {
+    encode gzip
+    @admin path {$ACR_ADMIN_PATH} {$ACR_ADMIN_PATH}/* /api/admin /api/admin/*
+    handle @admin {
+        basic_auth {
+            admin {$ADMIN_PASSWORD_HASH}
+        }
+        reverse_proxy 127.0.0.1:8790 {
+            header_up Host {$ACR_PUBLIC_HOST}
+            header_up X-ACR-Gateway {$ACR_GATEWAY_SECRET}
+        }
+    }
+    handle {
+        reverse_proxy 127.0.0.1:8790 {
+            header_up Host {$ACR_PUBLIC_HOST}
+            header_up X-ACR-Gateway {$ACR_GATEWAY_SECRET}
+        }
+    }
+}

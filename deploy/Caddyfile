@@ -1,0 +1,21 @@
+{$CLUB_DOMAIN} {
+    encode zstd gzip
+
+    # Independent HTTP basic auth on top of the in-app administrator key.
+    # Protect both admin pages AND their JSON APIs. Don't expose /admin alone.
+    @admin path {$ADMIN_PANEL_PATH} {$ADMIN_PANEL_PATH}/* /api/admin /api/admin/*
+    handle @admin {
+        basic_auth {
+            admin {$ADMIN_PASSWORD_HASH}
+        }
+        reverse_proxy app:8790 {
+            header_up X-ACR-Gateway {$ACR_GATEWAY_SECRET}
+        }
+    }
+
+    handle {
+        reverse_proxy app:8790 {
+            header_up X-ACR-Gateway {$ACR_GATEWAY_SECRET}
+        }
+    }
+}

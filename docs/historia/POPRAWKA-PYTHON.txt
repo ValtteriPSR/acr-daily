@@ -1,0 +1,25 @@
+ACR Rally Club — poprawka uruchamiania Pythona (FIX)
+
+Problem: oryginalne BAT wymagaly na sztywno "py -3.13", mimo ze Python
+w systemie moze byc zainstalowany w innej wersji.
+
+Poprawka: nowy find_python.bat probuje kolejno:
+  .venv\Scripts\python.exe (jesli jest)
+  py -3.13
+  py -3
+  python
+  python3
+
+Każda opcja musi faktycznie uruchamiac Python 3.11+.
+
+Instalacja: skopiuj CALA ZAWARTOSC ZIP do swojego folderu acr-daily-main
+  i potwierdz podmiane plikow .bat.
+
+Nastepnie: uruchom create_demo_rally.bat.
+Przy powodzeniu: start_local_server.bat -> open_results.bat -> run_player.bat.
+
+Jezeli nadal nie widzi Pythona: otworz CMD i uruchom:
+  py --list
+  python --version
+  where python
+oraz wklej wynik w rozmowie.

@@ -1,0 +1,88 @@
+name: Publish Windows launcher
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      public_url:
+        description: 'Public HTTPS club URL (without a trailing path)'
+        required: true
+        type: string
+      release_tag:
+        description: 'New release tag, for example v6.3.1-cloud.1'
+        required: true
+        type: string
+permissions:
+  contents: write
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Python tests
+        run: python -m unittest discover -s tests -v
+  windows-installer:
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Configure release domain
+        shell: pwsh
+        env:
+          PUBLIC_URL: ${{ inputs.public_url || vars.ACR_CLUB_PUBLIC_URL }}
+        run: |
+          if (-not $env:PUBLIC_URL) { throw 'Repository variable ACR_CLUB_PUBLIC_URL must be set to https://liga.example.com' }
+          python tools/configure_public_launcher.py --url "$env:PUBLIC_URL"
+      - name: Install Windows packaging dependencies
+        run: python -m pip install --upgrade pyinstaller
+      - name: Download and verify ACR Daily client modules (pinned commit)
+        run: python tools/vendor_acr_daily.py --download
+      - name: Verify upstream modules
+        run: python tools/vendor_acr_daily.py --check
+      - name: Verify all launcher module imports before freezing
+        run: python tools/verify_launcher_modules.py
+      - name: Export car catalog from original ACR Daily
+        run: python tools/export_club_catalog.py
+      - name: Build executable setup (also launches protocol)
+        shell: pwsh
+        run: |
+          python -m PyInstaller --noconfirm --clean --onefile --windowed `
+            --name ACR-Rally-Club-Setup --paths client `
+            --collect-submodules acr_daily --hidden-import acr_daily.settings `
+            --add-data "client/club_local/catalog.json;club_local" `
+            client/run_web_launcher.py
+      - name: Smoke-test frozen launcher imports
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath (Resolve-Path 'dist/ACR-Rally-Club-Setup.exe') -ArgumentList '--self-test' -Wait -PassThru
+          if ($process.ExitCode -ne 0) { throw "Frozen EXE import self-test failed with exit code $($process.ExitCode)" }
+      - name: SHA256 checksum
+        shell: pwsh
+        run: |
+          (Get-FileHash 'dist/ACR-Rally-Club-Setup.exe' -Algorithm SHA256).Hash.ToLower() + '  ACR-Rally-Club-Setup.exe' | Out-File -Encoding ascii 'dist/ACR-Rally-Club-Setup.exe.sha256'
+      - name: Test built artifact is present
+        shell: pwsh
+        run: |
+          if ((Get-Item 'dist/ACR-Rally-Club-Setup.exe').Length -lt 1000000) { throw 'Installer missing/implausibly small' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ACR-Rally-Club-Setup-Windows
+          path: |
+            dist/ACR-Rally-Club-Setup.exe
+            dist/ACR-Rally-Club-Setup.exe.sha256
+      - uses: softprops/action-gh-release@v2
+        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+        with:
+          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          target_commitish: ${{ github.sha }}
+          files: |
+            dist/ACR-Rally-Club-Setup.exe
+            dist/ACR-Rally-Club-Setup.exe.sha256
+          generate_release_notes: true

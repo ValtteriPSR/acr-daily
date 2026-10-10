@@ -1,0 +1,310 @@
+{
+  "origin": "khanhonthetrack/acr-daily",
+  "tree_sha": "135466d177e47039e0a8b6a6af2716379554c9e9",
+  "cars": [
+    {
+      "id": "AlfaRomeoGTA1300",
+      "telemetry": "Alfa_Romeo_GTA",
+      "name": "Alfa Romeo Giulia GTA Junior 1300",
+      "cls": "H3",
+      "group": "Group 2/4"
+    },
+    {
+      "id": "MiniCooperS1275",
+      "telemetry": "Mini Cooper S 1275",
+      "name": "Mini Cooper S 1275",
+      "cls": "H3",
+      "group": "Group 2/4"
+    },
+    {
+      "id": "AlpineA110",
+      "telemetry": "Alpine_A110",
+      "name": "Alpine A110 1800",
+      "cls": "H2",
+      "group": "Group 2/4"
+    },
+    {
+      "id": "AudiQuattroGr4",
+      "telemetry": "Audi Quattro Gr4",
+      "name": "Audi Quattro Gr4",
+      "cls": "H1",
+      "group": "Group 2/4"
+    },
+    {
+      "id": "Fiat124Abarth",
+      "telemetry": "FIAT Abarth 124 Rally",
+      "name": "Fiat 124 Abarth",
+      "cls": "H2",
+      "group": "Group 2/4"
+    },
+    {
+      "id": "Fiat131Abarth",
+      "telemetry": "FIAT 131 Abarth",
+      "name": "Fiat 131 Abarth",
+      "cls": "H1",
+      "group": "Group 2/4"
+    },
+    {
+      "id": "LanciaFulviaHF",
+      "telemetry": "Lancia Fulvia Coupé HF 1.6",
+      "name": "Lancia Fulvia Coupe HF",
+      "cls": "H3",
+      "group": "Group 2/4"
+    },
+    {
+      "id": "LanciaStratosHF",
+      "telemetry": "Lancia Stratos HF",
+      "name": "Lancia Stratos HF",
+      "cls": "H1",
+      "group": "Group 2/4"
+    },
+    {
+      "id": "LanciaRally037Evo2",
+      "telemetry": "Lancia 037",
+      "name": "Lancia Rally 037 Evo2",
+      "cls": "B2",
+      "group": "Group B"
+    },
+    {
+      "id": "LanciaDeltaIntegraleEvo",
+      "telemetry": "Lancia Delta Integrale Evo",
+      "name": "Lancia Delta HF Integrale Evo",
+      "cls": "A8 EVO2",
+      "group": "Group A"
+    },
+    {
+      "id": "SubaruImprezaS3",
+      "telemetry": "Subaru Impreza S3",
+      "name": "Subaru Impreza S3",
+      "cls": "A8 EVO3",
+      "group": "Group A"
+    },
+    {
+      "id": "Peugeot306IIMaxiKitCar",
+      "telemetry": "Peugeot 306 II Maxi Kit",
+      "name": "Peugeot 306 Maxi",
+      "cls": "K11",
+      "group": "Group A"
+    },
+    {
+      "id": "Peugeot206",
+      "telemetry": "Peugeot 206 WRC",
+      "name": "Peugeot 206 WRC",
+      "cls": "WR EVO1",
+      "group": "Group WR"
+    },
+    {
+      "id": "CitroenXsaraWRC",
+      "telemetry": "Citroen Xsara WRC",
+      "name": "Citroen Xsara WRC",
+      "cls": "WR EVO2",
+      "group": "Group WR"
+    },
+    {
+      "id": "VWPoloGTIR5",
+      "telemetry": "VW Polo GTI R5",
+      "name": "VW Polo GTI R5",
+      "cls": "Rally2/R5",
+      "group": "Group R"
+    },
+    {
+      "id": "HyundaiI20NRally2",
+      "telemetry": "Hyundai i20N Rally2",
+      "name": "Hyundai i20 N Rally2",
+      "cls": "Rally2/R5",
+      "group": "Group R"
+    },
+    {
+      "id": "SkodaFabiaRSRally2",
+      "telemetry": "Skoda Fabia RS Rally2",
+      "name": "Skoda Fabia RS Rally2",
+      "cls": "Rally2/R5",
+      "group": "Group R"
+    },
+    {
+      "id": "Peugeot208Rally4",
+      "telemetry": "Peugeot 208 Rally4",
+      "name": "Peugeot 208 Rally4",
+      "cls": "Rally4",
+      "group": "Group R"
+    }
+  ],
+  "stages": [
+    {
+      "id": "AlsaceS2MunsterFullReverse",
+      "name": "Vallée de Munster Descente"
+    },
+    {
+      "id": "AlsaceS2MunsterFullForward",
+      "name": "Vallée de Munster Montée"
+    },
+    {
+      "id": "AlsaceS2MunsterShort1Reverse",
+      "name": "Forêt de Munster"
+    },
+    {
+      "id": "AlsaceS2MunsterShort1Forward",
+      "name": "Luttenbach près Munster"
+    },
+    {
+      "id": "AlsaceS2MunsterShort2Reverse",
+      "name": "Col du petit Ballon"
+    },
+    {
+      "id": "AlsaceS2MunsterShort2Forward",
+      "name": "Sommet de Munster"
+    },
+    {
+      "id": "AlsaceS4SaverneFullReverse",
+      "name": "Steigenbach"
+    },
+    {
+      "id": "AlsaceS4SaverneFullForward",
+      "name": "Forêt de Saverne"
+    },
+    {
+      "id": "AlsaceS4SaverneShort1Forward",
+      "name": "Obersteigen"
+    },
+    {
+      "id": "AlsaceS4SaverneShort1Reverse",
+      "name": "La traversée de La Mossig"
+    },
+    {
+      "id": "GreeceS3ElatiaFullForward",
+      "name": "Elatia - Zeli"
+    },
+    {
+      "id": "GreeceS3ElatiaFullReverse",
+      "name": "Zeli - Elatia"
+    },
+    {
+      "id": "GreeceS3ElatiaCut1Forward",
+      "name": "Elatia"
+    },
+    {
+      "id": "GreeceS3ElatiaCut1Reverse",
+      "name": "Elatia Reverse"
+    },
+    {
+      "id": "GreeceS3ElatiaCut2Forward",
+      "name": "Zeli"
+    },
+    {
+      "id": "GreeceS3ElatiaCut2Reverse",
+      "name": "Zeli Reverse"
+    },
+    {
+      "id": "GreeceS4LoutrakiFullForward",
+      "name": "Loutraki - Aghii Theodori"
+    },
+    {
+      "id": "GreeceS4LoutrakiFullReverse",
+      "name": "Aghii Theodori - Loutraki"
+    },
+    {
+      "id": "GreeceS4LoutrakiCut1Forward",
+      "name": "New Loutraki"
+    },
+    {
+      "id": "GreeceS4LoutrakiCut1Reverse",
+      "name": "New Loutraki Reverse"
+    },
+    {
+      "id": "GreeceS4LoutrakiCut2Forward",
+      "name": "Aghii Theodori"
+    },
+    {
+      "id": "GreeceS4LoutrakiCut2Reverse",
+      "name": "Aghii Theodori Reverse"
+    },
+    {
+      "id": "MonteCarloS1BolleneFullForward",
+      "name": "La Bollène-Vésubie - Peïra Cava"
+    },
+    {
+      "id": "MonteCarloS1BolleneFullReverse",
+      "name": "Peïra Cava - La Bollène-Vésubie"
+    },
+    {
+      "id": "MonteCarloS1BolleneCut1Forward",
+      "name": "La Bollène-Vésubie - Turini"
+    },
+    {
+      "id": "MonteCarloS1BolleneCut1Reverse",
+      "name": "Turini - La Bollène-Vésubie"
+    },
+    {
+      "id": "MonteCarloS1BolleneCut2Forward",
+      "name": "Turini - Peïra Cava"
+    },
+    {
+      "id": "MonteCarloS1BolleneCut2Reverse",
+      "name": "Peïra Cava - Turini"
+    },
+    {
+      "id": "MonteCarloS1BolleneCut3Forward",
+      "name": "Pra d'Alart"
+    },
+    {
+      "id": "MonteCarloS1BolleneCut3Reverse",
+      "name": "Sommet de Turini"
+    },
+    {
+      "id": "MonteCarloS2SisteronFullForward",
+      "name": "Sisteron - St. Geniez"
+    },
+    {
+      "id": "MonteCarloS2SisteronFullReverse",
+      "name": "St. Geniez - Sisteron"
+    },
+    {
+      "id": "MonteCarloS2SisteronCut1Forward",
+      "name": "Sisteron - Mézien"
+    },
+    {
+      "id": "MonteCarloS2SisteronCut1Reverse",
+      "name": "Mézien - Sisteron"
+    },
+    {
+      "id": "MonteCarloS2SisteronCut2Forward",
+      "name": "Mézien - St. Geniez"
+    },
+    {
+      "id": "MonteCarloS2SisteronCut2Reverse",
+      "name": "St. Geniez - Mézien"
+    },
+    {
+      "id": "WelesS3HafrenNorthFullForward",
+      "name": "Cwmbiga - Afon Biga"
+    },
+    {
+      "id": "WelesS3HafrenNorthFullReverse",
+      "name": "Afon Biga - Cwmbiga"
+    },
+    {
+      "id": "WelesS3HafrenNorthCut1Forward",
+      "name": "Cwmbiga - Fedw Fain"
+    },
+    {
+      "id": "WelesS3HafrenNorthCut1Reverse",
+      "name": "Fedw Fain - Cwmbiga"
+    },
+    {
+      "id": "WelesS3HafrenNorthCut2Forward",
+      "name": "Banc Gwyn - Afon Biga"
+    },
+    {
+      "id": "WelesS3HafrenNorthCut2Reverse",
+      "name": "Afon Biga - Banc Gwyn"
+    },
+    {
+      "id": "WelesS4HafrenSouthFullForward",
+      "name": "Afon Bidno - Severn"
+    },
+    {
+      "id": "WelesS4HafrenSouthFullReverse",
+      "name": "Severn - Afon Bidno"
+    }
+  ]
+}

@@ -1,0 +1,50 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8790"
+    environment:
+      ACR_MIN_LAUNCHER_VERSION: '6.3.0'
+      ACR_DB_PATH: /data/club.sqlite3
+      ACR_ADMIN_KEY_PATH: /data/admin_key.txt
+      ACR_ADMIN_PATH: ${ADMIN_PANEL_PATH:?Set private admin path}
+      ACR_PUBLIC_BASE_URL: https://${CLUB_DOMAIN:?Set CLUB_DOMAIN in .env}
+      ACR_GATEWAY_SECRET: ${ACR_GATEWAY_SECRET:?Set gateway secret}
+      ACR_LAUNCHER_DOWNLOAD_URL: https://github.com/${GITHUB_REPOSITORY:?Set owner/repo}/releases/latest/download/ACR-Rally-Club-Setup.exe
+    volumes:
+      - ./data:/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,urllib.request; urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8790/healthz', headers={'Host':__import__('urllib.parse',fromlist=['urlsplit']).urlsplit(os.environ['ACR_PUBLIC_BASE_URL']).netloc,'X-ACR-Gateway':os.environ['ACR_GATEWAY_SECRET']}),timeout=2)"]
+      interval: 30s
+      timeout: 4s
+      retries: 3
+  caddy:
+    image: caddy:2.9
+    restart: unless-stopped
+    depends_on:
+      - app
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      CLUB_DOMAIN: ${CLUB_DOMAIN}
+      ACR_GATEWAY_SECRET: ${ACR_GATEWAY_SECRET}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:?Set a Caddy bcrypt hash}
+      ADMIN_PANEL_PATH: ${ADMIN_PANEL_PATH:?Set private admin path}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks:
+      - private
+networks:
+  private:
+volumes:
+  caddy_data:
+  caddy_config:
