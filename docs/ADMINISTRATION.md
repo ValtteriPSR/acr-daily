@@ -62,7 +62,7 @@ Required environment variables:
 | `ACR_ADMIN_KEY` | Application administrator sign-in key |
 | `ADMIN_HTTP_PASSWORD` | HTTP authentication password for `admin` |
 | `ACR_GATEWAY_SECRET` | Trusted reverse-proxy secret |
-| `ACR_LAUNCHER_DOWNLOAD_URL` | Public GitHub Release installer URL |
+| `ACR_LAUNCHER_DOWNLOAD_URL` | Public GitHub release page (asset URLs also normalize to that page) |
 | `ACR_MIN_LAUNCHER_VERSION` | Minimum accepted client version, currently `0.2.0` (legacy 6.3.1 remains compatible) |
 
 `RENDER_EXTERNAL_URL` supplies the public origin automatically.
@@ -77,3 +77,11 @@ Free services may sleep, restart or be suspended when quotas are exhausted.
 Monitor usage in Render and Neon. Keep private database backups before major
 changes; Neon's free instant-restore window is short. Do not run two club server
 instances against the same database. Never expose the backend port directly.
+
+## Steam member accounts
+
+Members sign in on Steam and choose or edit their nickname under My profile.
+Existing nicknames can be linked to Steam with their saved legacy recovery code.
+The administrator key and browser password still protect the private panel.
+Steam sign-in does not grant administrator privileges. Public standings expose
+club nicknames, not Steam IDs. Keep database backups private.

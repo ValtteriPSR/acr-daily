@@ -56,7 +56,7 @@ class SeasonHttpTests(unittest.TestCase):
         return next(c.value for c in self.jar if c.name=='acrclub_csrf')
 
     def test_club_register_enroll_ticket_run_and_stage_table(self):
-        self.assertIn('Nowe konto',self.get('/club'))
+        self.assertIn('Steam',self.get('/club'))
         page=self.post('/web/club/register',{'nickname':'BrowserSeason','csrf':self.csrf()})
         self.assertIn('kod odzyskiwania',page)
         self.assertTrue(any(c.name=='acrclub_member' for c in self.jar))

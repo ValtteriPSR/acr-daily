@@ -45,8 +45,8 @@ errors are localized separately. Language state must never leak between requests
 ## Build and publish the Windows installer
 
 Use **Actions → Publish Windows launcher → Run workflow** on `rally-club`.
-Supply the public HTTPS club origin and a new release tag, such as `v0.2`.
-The project release is 0.2; the client reports semantic version `0.2.0`.
+Supply the public HTTPS club origin and a new release tag, such as `v0.2.1`.
+The project release and client version are `0.2.1`. Client `0.2.0` remains compatible.
 The release includes the compiled EXE, a portable source ZIP and SHA256 checksums.
 
 The workflow configures the launcher origin, downloads the six pinned upstream
@@ -78,3 +78,27 @@ Upstream ACR Daily client revision:
 `135466d177e47039e0a8b6a6af2716379554c9e9`.
 The MIT license and verified catalog files are retained. `RELEASE-MANIFEST.json`
 records the current source hashes; it excludes generated files and secrets.
+
+## Steam authentication
+
+`server_local/steam_auth.py` implements the fixed Steam OpenID 2.0 provider.
+The callback validates browser-bound state, origin, claimed SteamID, signed
+fields and nonce age, then verifies the assertion directly with Steam over HTTPS.
+State and nonces are consumed atomically; duplicate responses cannot mint a
+session. Unrecognized users select a nickname before a club account is created.
+
+The database migration adds Steam identity, pending sign-in and nonce tables
+plus `club_sessions.steam_verified`. Old sessions cannot act as Steam sessions.
+Linking a legacy account requires Steam verification and its existing recovery
+code; old sessions are revoked. Nickname edits update club and rally display
+names transactionally without altering member IDs, attempt state or results.
+Steam IDs are not included in public standings. Logout revokes the club session.
+
+Tests exercise signature rejection, state binding, replay, expiry, onboarding,
+legacy linking, nickname conflicts, unchanged attempt identity and browser HTTP
+cookies. PostgreSQL runs the same Steam suite in isolated schemas. Unit tests
+mock Valve signature verification; a real Steam user must still confirm the
+first production sign-in on Valve's website.
+
+References: [Steam OpenID provider](https://steamcommunity.com/dev) and
+[OpenID Authentication 2.0](https://openid.net/specs/openid-authentication-2_0.html).

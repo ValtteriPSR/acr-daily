@@ -65,7 +65,7 @@ class PublicConfigurationTests(unittest.TestCase):
                     self.assertIn('Strict-Transport-Security',ok[1])
                     dl=get('/download',good)
                     self.assertEqual(dl[0],302)
-                    self.assertTrue(dl[1]['Location'].startswith('https://github.com/'))
+                    self.assertEqual(dl[1]['Location'],'https://github.com/example/example/releases/latest')
                     from admin_access import admin_path
                     self.assertEqual(get('/admin',good)[0],404)
                     self.assertEqual(get(admin_path(auth.key_path),good)[0],200)  # Caddy protects private path

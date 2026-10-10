@@ -8,11 +8,22 @@ You need Windows 10/11, Assetto Corsa Rally installed through Steam, an internet
 connection and the club launcher. You do not need Python, Git or a local server.
 
 1. Download **ACR-Rally-Club-Setup.exe** from the website's launcher button or
-   [GitHub Releases](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2).
+   [GitHub Releases](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.1).
 2. Run the installer once to register `acrclub://` links.
-3. Open **My profile**, choose a nickname and save the recovery code privately.
-   The code is shown only once and lets you restore your account in another browser.
-4. If the championship uses divisions, wait for the organizer to assign yours.
+3. Open **My profile → Sign in through Steam**. Sign in on the official Steam
+   website and confirm the return to the club. On the first visit, choose your
+   club nickname. It may differ from your Steam profile name.
+4. While signed in, use **My profile → Save nickname** to change the display name.
+   Your account, rally entries, attempts and results stay attached to your Steam
+   identity. Use the same Steam account on another browser or computer.
+
+The download button opens the GitHub release page. Expand **Assets** and choose
+`ACR-Rally-Club-Setup.exe`; the website does not start a direct EXE download.
+If you had a club account before Steam login, sign in through Steam first and use
+**Link an existing club account** with your old nickname and recovery code.
+This preserves the old account's entries, results and team/division assignments.
+
+If the championship uses divisions, wait for the organizer to assign yours.
 
 ## Start a rally
 
@@ -42,7 +53,8 @@ Event dates use fixed UTC+2, including in winter.
 - If results are missing, wait for the game to save all stage results and for the
   launcher to read them. Check the rally status page.
 - For connection problems, the first visit after inactivity may take about a minute.
-- For account recovery, use your nickname and recovery code under **My profile**.
+- To return to your account, sign in with the same Steam account under **My profile**.
+  Recovery codes are used only to link accounts created before Steam sign-in.
 
 Launcher logs are stored at `%LOCALAPPDATA%\ACR Rally Club\player-events.log`.
 Review them for private data before sharing them with the organizer. Do not edit

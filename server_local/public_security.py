@@ -17,6 +17,25 @@ DOWNLOAD_URL = os.environ.get('ACR_LAUNCHER_DOWNLOAD_URL', '')
 MIN_LAUNCHER_VERSION = os.environ.get('ACR_MIN_LAUNCHER_VERSION','0.2.0')
 
 
+def launcher_release_page(url):
+    """Old asset settings remain valid, but website navigation opens the release."""
+    from re import fullmatch
+    parsed = urlsplit(url)
+    if (parsed.scheme != 'https' or parsed.netloc != 'github.com'
+            or parsed.query or parsed.fragment):
+        raise ValueError('Launcher downloads must point to a public GitHub release')
+    matched = fullmatch(r'/([^/]+)/([^/]+)/releases/(tag/[^/]+|download/([^/]+)/[^/]+|latest(?:/download/[^/]+)?)', parsed.path)
+    if not matched:
+        raise ValueError('Use a GitHub release page or release asset URL')
+    base = 'https://github.com/' + matched[1] + '/' + matched[2] + '/releases/'
+    route = matched[3]
+    if route.startswith('download/'):
+        return base + 'tag/' + matched[4]
+    if route.startswith('latest'):
+        return base + 'latest'
+    return base + route
+
+
 def check_config():
     if not PUBLIC_URL:
         return
@@ -26,9 +45,7 @@ def check_config():
     if len(GATEWAY_SECRET) < 32:
         raise RuntimeError('ACR_GATEWAY_SECRET must be at least 32 characters in public mode')
     if DOWNLOAD_URL:
-        u=urlsplit(DOWNLOAD_URL)
-        if u.scheme != 'https' or not u.hostname or u.username or u.password:
-            raise RuntimeError('ACR_LAUNCHER_DOWNLOAD_URL must be a valid HTTPS URL')
+        launcher_release_page(DOWNLOAD_URL)
 
 
 def gateway_ok(headers):

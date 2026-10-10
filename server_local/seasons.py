@@ -129,6 +129,8 @@ def install(store):
                 store.db.execute(f'ALTER TABLE season_events ADD COLUMN {field} TEXT')
         store.db.execute('''CREATE UNIQUE INDEX IF NOT EXISTS idx_rally_club_member
                             ON players(event_id,club_member_id) WHERE club_member_id IS NOT NULL''')
+        from steam_auth import install as install_steam
+        install_steam(store)
 
 
 def cookie(token, *, secure=False):
@@ -136,20 +138,23 @@ def cookie(token, *, secure=False):
             + ('; Secure' if secure else ''))
 
 
-def member_by_cookie(store, token):
+def member_by_cookie(store, token, *, steam_only=False):
     if not isinstance(token,str) or not 40 <= len(token) <= 128:
         return None
     with store.lock:
-        row=store.db.execute('''SELECT m.id,m.nickname,m.nickname_key FROM club_sessions s
+        row=store.db.execute('''SELECT m.id,m.nickname,m.nickname_key,s.steam_verified,a.steam_id FROM club_sessions s
                 JOIN club_members m ON m.id=s.member_id
+                LEFT JOIN club_steam_accounts a ON a.member_id=m.id
                 WHERE s.session_hash=? AND s.expires>?''',(_hash(token),_now())).fetchone()
+        if row and steam_only and (not row['steam_verified'] or not row['steam_id']):
+            return None
         return dict(row) if row else None
 
 
-def _new_session(store, member_id):
+def _new_session(store, member_id, *, steam_verified=False):
     token=secrets.token_urlsafe(32)
-    store.db.execute('''INSERT INTO club_sessions(session_hash,member_id,expires)
-            VALUES(?,?,?)''', (_hash(token), member_id, _now()+CLUB_COOKIE_AGE))
+    store.db.execute('''INSERT INTO club_sessions(session_hash,member_id,expires,steam_verified)
+            VALUES(?,?,?,?)''', (_hash(token), member_id, _now()+CLUB_COOKIE_AGE, int(steam_verified)))
     return token
 
 
@@ -180,9 +185,85 @@ def club_recover(store, nickname, recovery):
         _fault(401,tr('Invalid recovery code'))
     with store.lock:
         row=store.db.execute('SELECT * FROM club_members WHERE nickname_key=?',(key,)).fetchone()
+        if row and store.db.execute('SELECT 1 FROM club_steam_accounts WHERE member_id=?',(row['id'],)).fetchone():
+            _fault(401,tr('This account uses Steam. Sign in through Steam.'))
         if row is None or not hmac.compare_digest(row['recovery_hash'],_hash(recovery)):
             _fault(401,tr('Invalid nickname or recovery code'))
         return {'nickname':row['nickname'],'token':_new_session(store,row['id'])}
+
+
+def steam_finish(store, pending, nickname=None, recovery=None):
+    """Create or safely link a club identity after Steam has verified its owner."""
+    from steam_auth import pending_steam_id, digest
+    from server import nick_key
+    with store.lock:
+        store._begin()
+        try:
+            steam_id = pending_steam_id(store, pending)
+            if not steam_id:
+                _fault(401, tr('Sign in through Steam before choosing your nickname.'))
+            linked = store.db.execute('SELECT member_id FROM club_steam_accounts WHERE steam_id=?', (steam_id,)).fetchone()
+            if linked:
+                member_id = linked['member_id']
+            elif nickname is None:
+                store.db.execute('COMMIT')
+                return None  # First sign-in: ask for a nickname; do not create a placeholder.
+            else:
+                nick, key = nick_key(nickname)
+                if recovery is not None:
+                    old = store.db.execute('SELECT * FROM club_members WHERE nickname_key=?', (key,)).fetchone()
+                    if (not isinstance(recovery, str) or not 32 <= len(recovery) <= 128 or not old
+                            or not hmac.compare_digest(old['recovery_hash'], _hash(recovery))):
+                        _fault(401, tr('Invalid nickname or recovery code'))
+                    if store.db.execute('SELECT 1 FROM club_steam_accounts WHERE member_id=?', (old['id'],)).fetchone():
+                        _fault(409, tr('This club account is already linked to another Steam account.'))
+                    member_id = old['id']
+                    store.db.execute('DELETE FROM club_sessions WHERE member_id=?', (member_id,))
+                else:
+                    row = store.db.execute('''INSERT INTO club_members(nickname,nickname_key,recovery_hash,created)
+                                             VALUES(?,?,?,?)''', (nick,key,_hash(secrets.token_urlsafe(32)),_now()))
+                    member_id = row.lastrowid
+                store.db.execute('INSERT INTO club_steam_accounts(steam_id,member_id) VALUES(?,?)', (steam_id,member_id))
+            token = _new_session(store, member_id, steam_verified=True)
+            store.db.execute('DELETE FROM steam_pending_sessions WHERE session_hash=?', (digest(pending),))
+            member = store.db.execute('SELECT nickname FROM club_members WHERE id=?', (member_id,)).fetchone()
+            store.db.execute('COMMIT')
+            return {'token':token, 'nickname':member['nickname'], 'memberId':member_id}
+        except sqlite3.IntegrityError:
+            if store.db.in_transaction:store.db.execute('ROLLBACK')
+            _fault(409,tr('This nickname or Steam account is already registered. Choose another nickname or sign in again.'))
+        except Exception:
+            if store.db.in_transaction:store.db.execute('ROLLBACK')
+            raise
+
+
+def change_nickname(store, token, nickname):
+    from server import nick_key
+    nick, key = nick_key(nickname)
+    with store.lock:
+        store._begin()
+        try:
+            member = member_by_cookie(store, token, steam_only=True)
+            if not member:
+                _fault(401,tr('Sign in through Steam to edit your nickname.'))
+            # Update display names only. IDs, attempts, tokens and results survive.
+            store.db.execute('UPDATE club_members SET nickname=?,nickname_key=? WHERE id=?', (nick,key,member['id']))
+            store.db.execute('UPDATE players SET nickname=?,nickname_key=? WHERE club_member_id=?', (nick,key,member['id']))
+            store.db.execute('COMMIT')
+        except sqlite3.IntegrityError:
+            if store.db.in_transaction:store.db.execute('ROLLBACK')
+            _fault(409,tr('This nickname is already used by another club member or rally participant.'))
+        except Exception:
+            if store.db.in_transaction:store.db.execute('ROLLBACK')
+            raise
+
+
+def club_logout(store, token, pending=None):
+    with store.lock:
+        if isinstance(token,str):
+            store.db.execute('DELETE FROM club_sessions WHERE session_hash=?', (_hash(token),))
+        if isinstance(pending,str):
+            store.db.execute('DELETE FROM steam_pending_sessions WHERE session_hash=?', (_hash(pending),))
 
 
 def club_join(store,event_id,member_id):
@@ -608,11 +689,16 @@ def members_list_sql(store):
     return store.db.execute('SELECT id,nickname FROM club_members ORDER BY nickname_key').fetchall()
 
 
-def club_page(member,csrf):
+def club_page(member,csrf,pending=False):
     field='<input type="hidden" name="csrf" value="'+escape(csrf,quote=True)+'">'
-    if member:
+    if member and member.get('steam_verified'):
         return (tr('<h1>ACR Rally Club · profile</h1><section class="card"><h2>Welcome, ')+escape(member['nickname'])+
-                tr('</h2><p>This browser remembers your nickname. Enter rallies using the same account.</p><p><a href="/">Choose a rally</a> · <a href="/seasons">Seasons</a></p></section>'))
-    return (tr('<h1>ACR Rally Club · join the club</h1><section class="card"><h2>New account</h2><p>Use one nickname across all rallies. Keep your recovery code safe.</p><form action="/web/club/register" method="post">')+field+
-        tr('<label>Your nickname <input name="nickname" required minlength="2" maxlength="24" autocomplete="nickname"></label> <button class="run">CREATE ACCOUNT</button></form></section><section class="card"><h2>Recover account</h2><form action="/web/club/recover" method="post">')+field+
-        tr('<label>Nick <input name="nickname" required></label> <label>Recovery code <input name="recovery" required autocomplete="off"></label> <button class="run">SIGN IN AGAIN</button></form></section>'))
+                tr('</h2><p>Signed in through Steam. Your club nickname can be different from your Steam profile name.</p><form action="/web/club/nickname" method="post">')+field+
+                tr('<label>Club nickname <input name="nickname" required minlength="2" maxlength="24" autocomplete="nickname" value="')+escape(member['nickname'],quote=True)+
+                tr('"></label> <button class="run">SAVE NICKNAME</button></form><p>Changing your nickname keeps your rally entries, attempts and results.</p><p><a href="/">Choose a rally</a> · <a href="/seasons">Seasons</a></p><form action="/web/club/logout" method="post">')+field+
+                tr('<button>Sign out of the club</button></form></section>'))
+    if pending:
+        return (tr('<h1>Steam sign-in confirmed</h1><section class="card"><h2>Choose your club nickname</h2><p>This nickname is linked to your Steam account. You can change it later in My profile.</p><form action="/web/club/register" method="post">')+field+
+                tr('<label>Club nickname <input name="nickname" required minlength="2" maxlength="24" autocomplete="nickname"></label> <button class="run">SAVE AND CONTINUE</button></form></section><section class="card"><h2>Link an existing club account</h2><p>If you joined before Steam sign-in was added, enter your old nickname and recovery code to keep your entries and results.</p><form action="/web/club/recover" method="post">')+field+
+                tr('<label>Previous nickname <input name="nickname" required></label> <label>Recovery code <input name="recovery" type="password" required autocomplete="off"></label> <button class="run">LINK TO STEAM</button></form></section><form action="/web/club/logout" method="post">')+field+tr('<button>Cancel and sign out</button></form>'))
+    return tr('<h1>ACR Rally Club · join the club</h1><section class="card"><h2>Sign in through Steam</h2><p>Sign in on the official Steam website, then choose your ACR Rally Club nickname. You can edit it whenever you are signed in.</p><p><a class="btn-link" href="/auth/steam">SIGN IN THROUGH STEAM</a></p><p>Your Steam password stays on Steam. The club uses your verified Steam identity to keep one account and your rally history.</p></section>')

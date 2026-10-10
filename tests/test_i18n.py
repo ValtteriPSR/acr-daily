@@ -55,18 +55,18 @@ class LocalizationTests(unittest.TestCase):
         page, headers, url = self.switch('en', '/club?view=profile')
         self.assertEqual(url, self.base + '/club?view=profile')
         self.assertIn('<html lang="en">', page)
-        self.assertIn('New account', page)
+        self.assertIn('Sign in through Steam', page)
         self.assertEqual(headers['Content-Language'], 'en')
         cookie = next(c for c in self.jar if c.name == 'acrclub_language')
         self.assertEqual(cookie.value, 'en')
         self.assertIn('HttpOnly', cookie._rest)
         self.assertEqual(cookie._rest['SameSite'], 'Lax')
         self.assertIn('Results and standings', self.get('/seasons')[0])
-        self.assertIn('Nowe konto', self.switch('pl', '/club')[0])
+        self.assertIn('Zaloguj się przez Steam', self.switch('pl', '/club')[0])
 
     def test_public_and_admin_templates_are_translated(self):
         self.switch('en')
-        cases = [('/', 'Rallies and events'), ('/club', 'Recovery code'),
+        cases = [('/', 'Rallies and events'), ('/club', 'Sign in through Steam'),
                  ('/guide', 'Every stage has one attempt.'),
                  ('/launcher', 'Download Windows installer'),
                  ('/seasons', 'Results and standings'),
@@ -108,7 +108,7 @@ class LocalizationTests(unittest.TestCase):
 
     def test_registration_errors_use_selected_language(self):
         page = self.switch('en', '/club')[0]
-        csrf = re.search(r'name="csrf" value="([^"]+)"', page).group(1)
+        csrf = next(c.value for c in self.jar if c.name == 'acrclub_csrf')
         request = Request(self.base + '/web/club/register',
                           data=urlencode({'nickname': 'x', 'csrf': csrf}).encode(),
                           headers={'Origin': self.base,

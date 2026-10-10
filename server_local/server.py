@@ -41,10 +41,12 @@ from seasons import (install as install_seasons, club_register, club_recover,
                      mint_club_ticket, ensure_division_assigned, members as club_members,
                      list_seasons, season_config, save_season, set_rallies, set_rally_points,
                      add_group, rename_group, delete_group, set_team_capacity, assign_member, scoring,
-                     club_page)
+                     club_page, steam_finish, change_nickname, club_logout)
+import steam_auth
 from season_panel import html as season_admin_html
 from public_security import (PUBLIC_URL, DOWNLOAD_URL, check_config, gateway_ok,
-                             check_host, browser_origin, remote_addr, RateLimiter, version_allowed)
+                             check_host, browser_origin, remote_addr, RateLimiter, version_allowed,
+                             launcher_release_page)
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_DEFAULT = Path(os.environ.get('ACR_DB_PATH', str(ROOT / 'server_local' / 'club.sqlite3')))
@@ -524,7 +526,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
         evs=store.listing()
         upcoming=sum(utc_epoch(ev['opensAt'])>now for ev in evs)
         active=sum(utc_epoch(ev['opensAt'])<=now<=utc_epoch(ev['closesAt']) for ev in evs)
-        content=(tr('<section class="hero"><span class="eyebrow">Assetto Corsa Rally · Club competition</span><h1>Rallies and events</h1><p>Choose a rally, read the rules and start with one click. Stages, standings and club results in one place.</p><p><a class="btn-link" href="/download">⬇ DOWNLOAD WINDOWS LAUNCHER (.EXE)</a>\u3000<a class="btn-link" href="/guide">Getting started →</a></p><div class="stats"><div class="stat"><strong>')+str(len(evs))+tr('</strong><span>Rallies</span></div><div class="stat"><strong>')+str(active)+tr('</strong><span>Live</span></div><div class="stat"><strong>')+str(upcoming)+tr('</strong><span>Scheduled</span></div></div></section>'))
+        content=(tr('<section class="hero"><span class="eyebrow">Assetto Corsa Rally · Club competition</span><h1>Rallies and events</h1><p>Choose a rally, read the rules and start with one click. Stages, standings and club results in one place.</p><p><a class="btn-link" href="/download" target="_blank" rel="noopener noreferrer">⬇ WINDOWS LAUNCHER ON GITHUB</a>\u3000<a class="btn-link" href="/guide">Getting started →</a></p><div class="stats"><div class="stat"><strong>')+str(len(evs))+tr('</strong><span>Rallies</span></div><div class="stat"><strong>')+str(active)+tr('</strong><span>Live</span></div><div class="stat"><strong>')+str(upcoming)+tr('</strong><span>Scheduled</span></div></div></section>'))
         if member:
             content+=(tr('<section class="card"><span class="section-kicker">Your profile</span>Welcome, <strong>')+escape(member['nickname'])+
                       tr('</strong>. <a href="/club">View club account →</a></section>'))
@@ -559,7 +561,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
                       '<input type="hidden" name="eventId" value="'+eid+tr('"><button class="run" type="submit">REGISTER FOR RALLY</button></form>'))
         elif browser is None:
             seasonal=store.db.execute('SELECT 1 FROM season_events WHERE event_id=?',(ev['id'],)).fetchone()
-            content+=tr('<p>Have an account? <a href="/club">Join the club</a> to keep the same nickname across all rallies.</p>')
+            content+=tr('<p><a href="/club">Sign in through Steam</a> and choose your club nickname to enter rallies.</p>')
             if not seasonal and not PUBLIC_URL:
                 content+=('<form action="/web/enroll" method="post">'+csrf_field+
                     '<input type="hidden" name="eventId" value="'+eid+tr('"><label for="nickname">Driver nickname</label><div class="toolbar"><input id="nickname" name="nickname" required minlength="2" maxlength="24" autocomplete="nickname" placeholder="Your nickname"><button class="run" type="submit">REGISTER FOR RALLY</button></div></form>'))
@@ -713,7 +715,8 @@ def make_handler(store, admin=None, catalog_root=None):
                 self.send_header('Strict-Transport-Security', 'max-age=31536000; includeSubDomains')
             if extra_headers:
                 for header, val in extra_headers.items():
-                    self.send_header(header, val)
+                    for item in (val if isinstance(val, list) else [val]):
+                        self.send_header(header, item)
             self.end_headers()
             self.wfile.write(payload)
 
@@ -742,6 +745,18 @@ def make_handler(store, admin=None, catalog_root=None):
                 return {k: v.value for k,v in cookie.items()}
             except Exception:
                 return {}
+
+        def _steam_origin(self):
+            return PUBLIC_URL or 'http://127.0.0.1:' + str(self.server.server_port)
+
+        def _club_member(self, cookies):
+            return member_by_cookie(store, cookies.get('acrclub_member'), steam_only=bool(PUBLIC_URL))
+
+        def log_message(self, fmt, *args):
+            # OpenID assertions and state values are authentication material.
+            if self.path.startswith('/auth/steam/callback'):
+                return super().log_message('Steam callback %s', str(args[1]) if len(args)>1 else '')
+            return super().log_message(fmt, *args)
 
         def _form(self):
             ctype = self.headers.get('Content-Type','').split(';',1)[0].lower()
@@ -858,6 +873,26 @@ def make_handler(store, admin=None, catalog_root=None):
             try:
                 self._gateway_guard()
                 path = unquote(urlparse(self.path).path)
+                if path == '/auth/steam':
+                    self._limit('steam-sign-in', 20)
+                    location, state = steam_auth.start(store, self._steam_origin())
+                    return self._redirect(location, cookie=steam_auth.cookie('acrclub_steam_state', state, secure=self._secure_cookie()))
+                if path == '/auth/steam/callback':
+                    self._limit('steam-callback', 20)
+                    pending = steam_auth.callback(store, urlparse(self.path).query,
+                                                  self._cookies().get('acrclub_steam_state'), self._steam_origin())
+                    expired = steam_auth.cookie('acrclub_steam_state', '', secure=self._secure_cookie(), age=0)
+                    if pending is None:
+                        return self._redirect('/club', cookie=expired)
+                    account = steam_finish(store, pending)
+                    cookies = [expired]
+                    if account:
+                        cookies += [club_cookie(account['token'], secure=self._secure_cookie()),
+                                    steam_auth.cookie('acrclub_steam_pending', '', secure=self._secure_cookie(), age=0)]
+                    else:
+                        cookies += [steam_auth.cookie('acrclub_steam_pending', pending, secure=self._secure_cookie()),
+                                    steam_auth.cookie('acrclub_member', '', secure=self._secure_cookie(), age=0)]
+                    return self._redirect('/club', cookie=cookies)
                 if path == '/language':
                     query = parse_qs(urlparse(self.path).query)
                     chosen = query.get('lang', [''])[0]
@@ -885,17 +920,19 @@ def make_handler(store, admin=None, catalog_root=None):
                 if path == '/download':
                     if not DOWNLOAD_URL:
                         raise Fault(503,tr('The installer will be available after the first GitHub Release is published'))
-                    return self._write(302,'','text/plain; charset=utf-8',{'Location':DOWNLOAD_URL})
+                    return self._write(302,'','text/plain; charset=utf-8',{'Location':launcher_release_page(DOWNLOAD_URL)})
                 if path == '/guide':
                     from driver_guide import page
                     return self._write(200,page(),'text/html; charset=utf-8')
                 if path == '/club':
                     csrf=secrets.token_urlsafe(24)
-                    member=member_by_cookie(store,self._cookies().get('acrclub_member'))
+                    cookies = self._cookies()
+                    member=self._club_member(cookies)
+                    pending=steam_auth.pending_steam_id(store,cookies.get('acrclub_steam_pending'))
                     from site_theme import shell
                     content=shell(tr('ACR Rally Club — Club account'),
                                   tr('<section class="hero"><span class="eyebrow">Club members</span><h1>Club account</h1><p>Your nickname for the season, rallies and divisions.</p></section>')+
-                                  club_page(member,csrf),active='club')
+                                  club_page(member,csrf,pending=bool(pending)),active='club')
                     return self._write(200,content,'text/html; charset=utf-8',
                          {'Set-Cookie':make_cookie('acrclub_csrf',csrf,secure=self._secure_cookie())})
                 if path == '/seasons':
@@ -924,7 +961,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200, {'events': store.admin_listing()})
                 if path == '/launcher':
                     from site_theme import shell
-                    info = (tr('<section class="hero"><span class="eyebrow">Start a rally / Windows</span><h1>ACR Club Launcher</h1><p>Install once. Then start rallies with one click on RUN RALLY.</p><p><a class="btn-link" href="/download">⬇ Download Windows installer .EXE</a></p></section><section class="card"><h2>How to get started?</h2><p>You do not need Python or .bat files. Download the .EXE, run it and register the acrclub:// protocol.</p><p>Create an account on the club website, choose a rally and click RUN RALLY. The launcher prepares the save and starts ACR through Steam.</p><p>Navigate manually to START STAGE. Details: <a href="/guide">driver guide →</a></p></section>'))
+                    info = (tr('<section class="hero"><span class="eyebrow">Start a rally / Windows</span><h1>ACR Club Launcher</h1><p>Install once. Then start rallies with one click on RUN RALLY.</p><p><a class="btn-link" href="/download" target="_blank" rel="noopener noreferrer">⬇ Download Windows installer on GitHub</a></p></section><section class="card"><h2>How to get started?</h2><p>You do not need Python or .bat files. Download the .EXE, run it and register the acrclub:// protocol.</p><p>Sign in through Steam, choose a club nickname and a rally and click RUN RALLY. The launcher prepares the save and starts ACR through Steam.</p><p>Navigate manually to START STAGE. Details: <a href="/guide">driver guide →</a></p></section>'))
                     return self._write(200, shell('ACR Rally Club — Launcher',info,active='launcher'),
                                        'text/html; charset=utf-8')
                 if path in ('/','/index.html'):
@@ -932,13 +969,13 @@ def make_handler(store, admin=None, catalog_root=None):
                 if path.startswith('/rally/') and len(path.split('/')) == 3:
                     event_id = path.split('/')[2]
                     cookies=self._cookies()
-                    member=member_by_cookie(store,cookies.get('acrclub_member'))
+                    member=self._club_member(cookies)
                     if member is not None:
                         # A persistent club account is authoritative. Never let a
                         # stale per-event browser cookie show another rider's identity.
                         actor=club_player(store,event_id,member['id'])
                     else:
-                        actor=browser_player(store,cookies.get('acrclub_browser'),event_id)
+                        actor=None if PUBLIC_URL else browser_player(store,cookies.get('acrclub_browser'),event_id)
                     csrf = secrets.token_urlsafe(24)
                     return self._write(200, site(store, event_id, actor, csrf, member), 'text/html; charset=utf-8',
                                        {'Set-Cookie':make_cookie('acrclub_csrf',csrf,
@@ -953,6 +990,10 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200, store.board(path.rsplit('/',1)[-1]))
                 raise Fault(404, tr('Not found'))
             except Fault as exc:
+                if self.path.startswith('/auth/steam'):
+                    from site_theme import shell
+                    page = shell(tr('Steam sign-in'), '<section class="card"><h1>'+tr('Steam sign-in')+'</h1><p>'+escape(str(exc))+'</p><p><a class="btn-link" href="/auth/steam">'+tr('Try Steam sign-in again')+'</a></p></section>',active='club')
+                    return self._write(exc.code,page,'text/html; charset=utf-8')
                 self._write(exc.code, {'error': str(exc)})
             except Exception:
                 self._write(500, {'error': tr('Server error')})
@@ -965,7 +1006,13 @@ def make_handler(store, admin=None, catalog_root=None):
                 if path in ('/web/club/register','/web/club/recover'):
                     self._limit(path,6)
                     data=self._form()
-                    self._require_web_form(data)
+                    cookies=self._require_web_form(data)
+                    pending=cookies.get('acrclub_steam_pending')
+                    if pending or PUBLIC_URL:
+                        account=steam_finish(store,pending,data.get('nickname',''),
+                                             data.get('recovery','') if path.endswith('/recover') else None)
+                        return self._redirect('/club',cookie=[club_cookie(account['token'],secure=self._secure_cookie()),
+                            steam_auth.cookie('acrclub_steam_pending','',secure=self._secure_cookie(),age=0)])
                     if path.endswith('/register'):
                         account=club_register(store,data.get('nickname',''))
                         page=(tr('<html lang="pl"><meta charset="utf-8"><title>Club account</title><style>')+STYLE+tr('</style><main><h1>Welcome to the club!</h1><section class="card"><p>Nick: <strong>')+escape(account['nickname'])+tr('</strong></p><p>Save this recovery code somewhere safe — it will not be shown again:</p><p><code>')+escape(account['recovery'])+tr('</code></p><p><a href="/">Open rally list →</a></p></section></main></html>'))
@@ -973,6 +1020,17 @@ def make_handler(store, admin=None, catalog_root=None):
                                            {'Set-Cookie':club_cookie(account['token'],secure=self._secure_cookie())})
                     account=club_recover(store,data.get('nickname',''),data.get('recovery',''))
                     return self._redirect('/club',cookie=club_cookie(account['token'],secure=self._secure_cookie()))
+                if path in ('/web/club/nickname','/web/club/logout'):
+                    self._limit(path,20)
+                    data=self._form()
+                    cookies=self._require_web_form(data)
+                    if path.endswith('/nickname'):
+                        change_nickname(store,cookies.get('acrclub_member'),data.get('nickname',''))
+                        return self._redirect('/club')
+                    club_logout(store,cookies.get('acrclub_member'),cookies.get('acrclub_steam_pending'))
+                    return self._redirect('/club',cookie=[
+                        steam_auth.cookie('acrclub_member','',secure=self._secure_cookie(),age=0),
+                        steam_auth.cookie('acrclub_steam_pending','',secure=self._secure_cookie(),age=0)])
                 if path in ('/web/enroll','/web/run'):
                     self._limit(path,20)
                     data = self._form()
@@ -980,7 +1038,9 @@ def make_handler(store, admin=None, catalog_root=None):
                     event_id = data.get('eventId','')
                     # Validate an existing event and forbid path-based redirects.
                     store.event(event_id)
-                    member=member_by_cookie(store,cookies.get('acrclub_member'))
+                    member=self._club_member(cookies)
+                    if PUBLIC_URL and member is None:
+                        raise Fault(401,tr('Sign in through Steam and choose a club nickname before entering or starting a rally.'))
                     if path == '/web/enroll':
                         if PUBLIC_URL and member is None:
                             raise Fault(403, tr('A club account is required in the public league (/club)'))

@@ -1,6 +1,6 @@
 services:
   app:
-    image: acr-rally-club:0.2
+    image: acr-rally-club:0.2.1
     build:
       context: ..
       dockerfile: deploy/Dockerfile

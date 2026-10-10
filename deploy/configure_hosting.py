@@ -29,9 +29,10 @@ def make_configuration(domain, download_url, database_url=''):
     import bcrypt
     domain = validate_domain(domain)
     download = urlsplit(download_url)
-    if (download.scheme != 'https' or not download.hostname or download.username
-            or download.password or download.fragment):
-        raise ValueError('The installer URL must be a public HTTPS download URL')
+    if (download.scheme != 'https' or download.netloc != 'github.com'
+            or download.query or download.fragment or not re.fullmatch(
+                r'/[^/]+/[^/]+/releases/(?:tag/[^/]+|download/[^/]+/[^/]+|latest(?:/download/[^/]+)?)', download.path)):
+        raise ValueError('Use a public GitHub release page or asset URL')
     if database_url:
         database = urlsplit(database_url)
         if database.scheme not in ('postgres', 'postgresql') or not database.hostname:
@@ -67,7 +68,7 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--domain', required=True)
     parser.add_argument('--download-url', required=True,
-                        help='EXE compiled for this domain')
+                        help='GitHub release containing an EXE compiled for this domain')
     parser.add_argument('--postgres', action='store_true',
                         help='Prompt privately for an existing PostgreSQL URL')
     parser.add_argument('--output', default='deploy/.env')
