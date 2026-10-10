@@ -51,8 +51,14 @@ class LauncherPackaging631(unittest.TestCase):
         spec=importlib.util.spec_from_file_location('security631',ROOT/'server_local/public_security.py')
         sec=importlib.util.module_from_spec(spec)
         spec.loader.exec_module(sec)
-        self.assertEqual(sec.MIN_LAUNCHER_VERSION,'6.3.1')
+        self.assertEqual(sec.MIN_LAUNCHER_VERSION,'0.2.0')
+        self.assertFalse(sec.version_allowed('0.1.9'))
+        self.assertTrue(sec.version_allowed('0.2.0'))
+        self.assertTrue(sec.version_allowed('0.2.1'))
         self.assertFalse(sec.version_allowed('6.3.0'))
         self.assertTrue(sec.version_allowed('6.3.1'))
+        for bad in ('0.2', 'v0.2.0', 'invalid', None):
+            self.assertFalse(sec.version_allowed(bad))
+        self.assertEqual((ROOT/'VERSION').read_text().strip(), '0.2')
 
 if __name__=='__main__':unittest.main()

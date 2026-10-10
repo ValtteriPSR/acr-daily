@@ -726,7 +726,7 @@ def make_handler(store, admin=None, catalog_root=None):
 
         def _client_version(self):
             if not version_allowed(self.headers.get('X-ACR-Launcher-Version')):
-                raise Fault(426, tr('Outdated launcher: V6.3.1 or later is required. Install the latest EXE from /download. Updating the server ZIP does not replace the installed launcher.'))
+                raise Fault(426, tr('Outdated launcher: version 0.2.0 or a compatible legacy 6.3.1 launcher is required. Install the latest EXE from /download. Updating the server ZIP does not replace the installed launcher.'))
 
         def _limit(self, name, count):
             if not limiter.allow(self._remote_ip(),name,count):

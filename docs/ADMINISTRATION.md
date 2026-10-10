@@ -43,6 +43,12 @@ final stage's official time including penalties.
 
 ## Hosting and updates
 
+To move to another provider, use the [hosting and migration guide](HOSTING.md).
+The two administrator credentials are different: browser password first,
+application key second. Incognito is useful for troubleshooting cached browser
+credentials; it is not required for normal use.
+
+
 The Render container runs the Python backend on loopback port 8790 behind Caddy,
 which binds Render's public port. Render provides HTTPS. Club data is stored in
 Neon PostgreSQL, rather than in the container's temporary filesystem.
@@ -57,7 +63,7 @@ Required environment variables:
 | `ADMIN_HTTP_PASSWORD` | HTTP authentication password for `admin` |
 | `ACR_GATEWAY_SECRET` | Trusted reverse-proxy secret |
 | `ACR_LAUNCHER_DOWNLOAD_URL` | Public GitHub Release installer URL |
-| `ACR_MIN_LAUNCHER_VERSION` | Minimum accepted client version, currently `6.3.1` |
+| `ACR_MIN_LAUNCHER_VERSION` | Minimum accepted client version, currently `0.2.0` (legacy 6.3.1 remains compatible) |
 
 `RENDER_EXTERNAL_URL` supplies the public origin automatically.
 

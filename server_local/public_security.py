@@ -14,7 +14,7 @@ from urllib.parse import urlsplit
 PUBLIC_URL = os.environ.get('ACR_PUBLIC_BASE_URL', '').rstrip('/')
 GATEWAY_SECRET = os.environ.get('ACR_GATEWAY_SECRET', '')
 DOWNLOAD_URL = os.environ.get('ACR_LAUNCHER_DOWNLOAD_URL', '')
-MIN_LAUNCHER_VERSION = os.environ.get('ACR_MIN_LAUNCHER_VERSION','6.3.1')
+MIN_LAUNCHER_VERSION = os.environ.get('ACR_MIN_LAUNCHER_VERSION','0.2.0')
 
 
 def check_config():
@@ -96,4 +96,10 @@ def version_allowed(raw):
         return False
     if not fullmatch(r'[0-9]{1,3}(?:\.[0-9]{1,3}){2}',MIN_LAUNCHER_VERSION):
         return False
-    return tuple(map(int,raw.split('.'))) >= tuple(map(int,MIN_LAUNCHER_VERSION.split('.')))
+    candidate = tuple(map(int, raw.split('.')))
+    minimum = tuple(map(int, MIN_LAUNCHER_VERSION.split('.')))
+    # The project restarted its numbering at 0.2. Keep the working cloud EXE
+    # usable during migration, while still rejecting the incomplete 6.3.0 EXE.
+    if minimum[0] == 0 and candidate[0] == 6:
+        return candidate >= (6, 3, 1)
+    return candidate >= minimum

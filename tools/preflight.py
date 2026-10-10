@@ -34,6 +34,7 @@ def check_server(*, distribution=False) -> list[str]:
         'server_local/i18n.py', 'server_local/translations/pl.json',
         'deploy/Caddyfile', 'deploy/Dockerfile', '.github/workflows/launcher-release.yml',
         'tools/vendor_acr_daily.py', 'tools/export_club_catalog.py', 'LICENSE',
+        'VERSION', 'deploy/configure_hosting.py', 'docs/HOSTING.md',
     ]
     missing = [p for p in required if not (ROOT / p).is_file()]
     if missing:

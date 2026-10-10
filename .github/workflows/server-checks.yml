@@ -14,6 +14,7 @@ jobs:
         with:
           python-version: '3.13'
       - run: python tools/preflight.py --server
+      - run: python -m pip install -r requirements.txt
       - run: python -m unittest discover -s tests -q
   postgres:
     runs-on: ubuntu-latest
@@ -39,3 +40,19 @@ jobs:
       - run: python tools/test_postgres.py
         env:
           TEST_DATABASE_URL: postgresql://postgres:local-ci-test-password@localhost:5432/acr_test
+  portable-hosting:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build provider-independent server image
+        run: docker build -t acr-rally-club:0.2 -f deploy/Dockerfile .
+      - name: Generate disposable hosting settings
+        run: |
+          docker run --rm --mount type=bind,source="$PWD/deploy",target=/configuration acr-rally-club:0.2 python deploy/configure_hosting.py --domain league.example.com --download-url https://github.com/example/club/releases/download/v0.2/setup.exe --output /configuration/.env > /tmp/acr-ci-access.txt
+          sudo chown "$(id -u):$(id -g)" deploy/.env
+      - name: Validate Compose and Caddy authentication configuration
+        run: |
+          docker compose --env-file deploy/.env -f deploy/compose.yaml config --quiet
+          docker compose --env-file deploy/.env -f deploy/compose.yaml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Check PostgreSQL driver in the portable image
+        run: docker run --rm acr-rally-club:0.2 python -c "import psycopg, psycopg_pool; print('PostgreSQL drivers available')"

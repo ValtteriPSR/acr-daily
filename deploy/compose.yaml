@@ -1,5 +1,6 @@
 services:
   app:
+    image: acr-rally-club:0.2
     build:
       context: ..
       dockerfile: deploy/Dockerfile
@@ -7,13 +8,15 @@ services:
     expose:
       - "8790"
     environment:
-      ACR_MIN_LAUNCHER_VERSION: '6.3.0'
+      ACR_MIN_LAUNCHER_VERSION: ${ACR_MIN_LAUNCHER_VERSION:-0.2.0}
+      DATABASE_URL: ${DATABASE_URL:-}
       ACR_DB_PATH: /data/club.sqlite3
       ACR_ADMIN_KEY_PATH: /data/admin_key.txt
+      ACR_ADMIN_KEY: ${ACR_ADMIN_KEY:?Set application administrator key}
       ACR_ADMIN_PATH: ${ADMIN_PANEL_PATH:?Set private admin path}
       ACR_PUBLIC_BASE_URL: https://${CLUB_DOMAIN:?Set CLUB_DOMAIN in .env}
       ACR_GATEWAY_SECRET: ${ACR_GATEWAY_SECRET:?Set gateway secret}
-      ACR_LAUNCHER_DOWNLOAD_URL: https://github.com/${GITHUB_REPOSITORY:?Set owner/repo}/releases/latest/download/ACR-Rally-Club-Setup.exe
+      ACR_LAUNCHER_DOWNLOAD_URL: ${ACR_LAUNCHER_DOWNLOAD_URL:?Set the domain-specific installer URL}
     volumes:
       - ./data:/data
     networks:
@@ -27,7 +30,8 @@ services:
     image: caddy:2.9
     restart: unless-stopped
     depends_on:
-      - app
+      app:
+        condition: service_healthy
     ports:
       - "80:80"
       - "443:443"

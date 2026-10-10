@@ -8,7 +8,7 @@ You need Windows 10/11, Assetto Corsa Rally installed through Steam, an internet
 connection and the club launcher. You do not need Python, Git or a local server.
 
 1. Download **ACR-Rally-Club-Setup.exe** from the website's launcher button or
-   [GitHub Releases](https://github.com/ValtteriPSR/acr-daily/releases/tag/v6.3.1-cloud.1).
+   [GitHub Releases](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2).
 2. Run the installer once to register `acrclub://` links.
 3. Open **My profile**, choose a nickname and save the recovery code privately.
    The code is shown only once and lets you restore your account in another browser.

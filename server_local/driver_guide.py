@@ -27,7 +27,7 @@ def page():
 <p><strong>Every stage has one attempt.</strong> Restarting, retiring or closing the game during an active attempt results in DNF for the whole rally. DNF gives zero overall, division and Power Stage points. After the last stage, allow the game to save official times and penalties.</p>
 <p>Each stage's raw time, penalties and official time are on the rally page. Season, division and team standings: <a href="/seasons">Results and standings</a>. Points are awarded after the round closes. Power Stage: the fastest finishers on the last stage receive 5, 4, 3, 2, 1 points by default. Official time including penalties counts.</p></section>
 <section class="card"><span class="section-kicker">Important notes</span><h2>Manual menus and save safety</h2>
-<p>Version V6.3 does not press keys or click ACR menus automatically. The driver navigates to Rally Weekend manually. The launcher writes the rally configuration to the .sav file while the game is closed.</p>
+<p>The launcher does not press keys or click ACR menus automatically. The driver navigates to Rally Weekend manually. The launcher writes the rally configuration to the .sav file while the game is closed.</p>
 <p>Navigate manually: <strong>Racing → Rally → Rally Weekend → START RALLY → automatic tire selection (J) → CONFIRM AND START RALLY → START STAGE</strong>.</p>
 <p>The launcher backs up <code>PlayerDataSaveSlot.sav</code> before making changes. Do not edit the save manually during a rally or share your recovery code.</p></section>
 <section class="card"><span class="section-kicker">Questions and troubleshooting</span><h2>What if something does not work?</h2>

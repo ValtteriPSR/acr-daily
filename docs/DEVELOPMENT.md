@@ -6,7 +6,7 @@
 - `client/club_local/`: Windows launcher, save preparation and telemetry monitor.
 - `tools/`: catalog validation, packaging, diagnostics and database tests.
 - `tests/`: server, launcher and integrity regression tests.
-- `deploy/`: Render container, Caddy configuration and process supervisor.
+- `deploy/`: portable Docker Compose, credential wizard, Caddy and cloud supervisor.
 - `render.yaml`: example Render Free Blueprint for Frankfurt.
 - `.github/workflows/`: SQLite/PostgreSQL checks and Windows releases.
 
@@ -45,7 +45,9 @@ errors are localized separately. Language state must never leak between requests
 ## Build and publish the Windows installer
 
 Use **Actions → Publish Windows launcher → Run workflow** on `rally-club`.
-Supply the public HTTPS club origin and a new release tag.
+Supply the public HTTPS club origin and a new release tag, such as `v0.2`.
+The project release is 0.2; the client reports semantic version `0.2.0`.
+The release includes the compiled EXE, a portable source ZIP and SHA256 checksums.
 
 The workflow configures the launcher origin, downloads the six pinned upstream
 modules, verifies their Git blob hashes, exports catalogs and builds a one-file
@@ -57,6 +59,11 @@ changing releases. Never publish administrator keys, database URLs, player token
 or recovery codes. A build self-test is not a substitute for an in-game test.
 
 ## Deployment and security
+
+Provider-independent deployments are documented in [Hosting](HOSTING.md).
+GitHub Actions builds the portable image, validates Compose/Caddy and verifies
+that its PostgreSQL drivers are installed.
+
 
 Render builds `deploy/Dockerfile.render` with the repository root as its context.
 Caddy's unneeded privileged-port file capability is removed for the Render sandbox.

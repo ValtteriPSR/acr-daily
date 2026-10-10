@@ -1,4 +1,4 @@
-# ACR Rally Club
+# ACR Rally Club 0.2
 
 A web-based rally club for Assetto Corsa Rally, based on
 [ACR Daily](https://github.com/khanhonthetrack/acr-daily). Manage rallies,
@@ -6,7 +6,7 @@ championships, divisions and teams in a browser. Players use a Windows launcher
 to prepare Rally Weekend, read telemetry and submit official results.
 
 **[Open the club](https://acr-rally-club.onrender.com/)** ·
-**[Download the Windows installer](https://github.com/ValtteriPSR/acr-daily/releases/tag/v6.3.1-cloud.1)**
+**[Download the Windows installer](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2)**
 
 The website supports Polish and English. Use **PL / EN** in the navigation bar;
 the browser remembers your choice. Rally names, nicknames and team names remain
@@ -14,11 +14,18 @@ exactly as entered by their authors.
 
 ## Guides
 
+- [Move to your own hosting](docs/HOSTING.md)
 - [Administration and hosting](docs/ADMINISTRATION.md)
 - [Player guide](docs/PLAYER-GUIDE.md)
 - [Development, testing and releases](docs/DEVELOPMENT.md)
 
 ## Hosting
+
+The application is portable: use Docker Compose on a Linux VPS, or the included
+container on a managed host. See [Hosting and migration](docs/HOSTING.md) for
+setup, secure credential generation, database preservation and domain-specific
+Windows builds. Ordinary PHP/FTP hosting needs a separate Python backend.
+
 
 The deployed application runs on Render Free in Frankfurt, with persistent
 PostgreSQL storage on Neon Free. Administrators need no local server, Python,
@@ -34,7 +41,7 @@ The Neon database is separate from Render's time-limited free database product.
 
 `rally-club` is the default application and deployment branch. This repository
 is a real fork of ACR Daily; the upstream branch and Git history remain available.
-Historical duplicate guides were consolidated into the three current guides
+Historical duplicate guides were consolidated into the current guides
 above. Previous versions can still be found in Git history.
 
 The server is self-contained. The Windows build downloads six upstream client

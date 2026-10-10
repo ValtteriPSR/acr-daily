@@ -10,7 +10,7 @@ on:
         required: true
         type: string
       release_tag:
-        description: 'New release tag, for example v6.3.1-cloud.1'
+        description: 'New release tag, for example v0.2 or v0.2-custom-domain'
         required: true
         type: string
 permissions:
@@ -26,7 +26,9 @@ jobs:
         with:
           python-version: '3.13'
       - name: Python tests
-        run: python -m unittest discover -s tests -v
+        run: |
+          python -m pip install -r requirements.txt
+          python -m unittest discover -s tests -v
   windows-installer:
     needs: test
     runs-on: windows-latest
@@ -69,6 +71,26 @@ jobs:
         shell: pwsh
         run: |
           (Get-FileHash 'dist/ACR-Rally-Club-Setup.exe' -Algorithm SHA256).Hash.ToLower() + '  ACR-Rally-Club-Setup.exe' | Out-File -Encoding ascii 'dist/ACR-Rally-Club-Setup.exe.sha256'
+      - name: Portable source archive and release metadata
+        shell: pwsh
+        env:
+          PUBLIC_URL: ${{ inputs.public_url || vars.ACR_CLUB_PUBLIC_URL }}
+        run: |
+          $releaseVersion = (Get-Content VERSION -Raw).Trim()
+          "RELEASE_VERSION=$releaseVersion" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          $archive = "ACR-Rally-Club-$releaseVersion-Source.zip"
+          git archive --format=zip --output="dist/$archive" HEAD
+          if ($LASTEXITCODE -ne 0) { throw 'Source archive failed' }
+          (Get-FileHash "dist/$archive" -Algorithm SHA256).Hash.ToLower() + "  $archive" | Out-File -Encoding ascii "dist/$archive.sha256"
+          $metadata = @{
+            version = $releaseVersion
+            launcher_version = (python -c "import sys; sys.path.insert(0,'client'); from club_local.version import VERSION; print(VERSION)")
+            source_commit = '${{ github.sha }}'
+            public_url = $env:PUBLIC_URL
+            exe_sha256 = (Get-FileHash 'dist/ACR-Rally-Club-Setup.exe' -Algorithm SHA256).Hash.ToLower()
+            source_archive_sha256 = (Get-FileHash "dist/$archive" -Algorithm SHA256).Hash.ToLower()
+          }
+          $metadata | ConvertTo-Json | Out-File -Encoding utf8 'dist/release-metadata.json'
       - name: Test built artifact is present
         shell: pwsh
         run: |
@@ -79,12 +101,20 @@ jobs:
           path: |
             dist/ACR-Rally-Club-Setup.exe
             dist/ACR-Rally-Club-Setup.exe.sha256
+            dist/*-Source.zip
+            dist/*-Source.zip.sha256
+            dist/release-metadata.json
       - uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         with:
           tag_name: ${{ inputs.release_tag || github.ref_name }}
           target_commitish: ${{ github.sha }}
+          name: ACR Rally Club ${{ env.RELEASE_VERSION }}
+          make_latest: true
           files: |
             dist/ACR-Rally-Club-Setup.exe
             dist/ACR-Rally-Club-Setup.exe.sha256
+            dist/*-Source.zip
+            dist/*-Source.zip.sha256
+            dist/release-metadata.json
           generate_release_notes: true

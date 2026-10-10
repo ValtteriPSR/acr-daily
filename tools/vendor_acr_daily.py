@@ -43,7 +43,7 @@ def verified(data: bytes, sha: str) -> bool:
 
 def download(name: str) -> bytes:
     url = f'https://raw.githubusercontent.com/{UPSTREAM}/{REVISION}/client/acr_daily/{name}'
-    req = Request(url, headers={'User-Agent': 'ACR-Rally-Club-Upstream-Vendor/6.3.1'})
+    req = Request(url, headers={'User-Agent': 'ACR-Rally-Club-Upstream-Vendor/0.2'})
     with urlopen(req, timeout=30) as response:
         if response.status != 200:
             raise OSError(f'GitHub returned HTTP {response.status}: {url}')

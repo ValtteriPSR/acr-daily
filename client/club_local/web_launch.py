@@ -138,7 +138,7 @@ class WebLaunchWindow:
             # Force a runtime verification of a module that an earlier EXE omitted.
             # This runs before redeeming the one-time RUN ticket.
             if not callable(getattr(acr_daily_settings, 'load', None)):
-                raise RuntimeError('Launcher EXE jest niekompletny (acr_daily.settings). Zainstaluj V6.3.1.')
+                raise RuntimeError('Launcher EXE jest niekompletny (acr_daily.settings). Zainstaluj wersję 0.2 lub nowszą.')
             server=configured_server()
             if saveslot.game_running():
                 raise RuntimeError('Zamknij Assetto Corsa Rally przed kliknięciem RUN; zapis .sav nie może być zmieniany przy uruchomionej grze.')

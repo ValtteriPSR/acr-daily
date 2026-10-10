@@ -140,7 +140,7 @@ def apply_club_weekend(data, event, car_id, cars_by_id=None):
                         'Zamknij ACR, zachowaj kopię obecnego .sav i przywróć POPRAWNĄ kopię zapisu '
                         'albo uruchom grę ręcznie, otwórz Rally Weekend, wyjdź z gry i sprawdź nowy zapis. '
                         'Jeśli nadal występuje: przekaż zapis .sav do analizy. '
-                        'Wersja launchera musi być V6.3 lub nowsza. Szczegóły: '+str(exc)) from exc
+                        'Zainstaluj aktualny launcher ACR Rally Club. Szczegóły: '+str(exc)) from exc
     if current['in_progress']:
         raise SaveError('A Rally Weekend is in progress; do not replace it.')
 
