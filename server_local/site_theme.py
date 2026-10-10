@@ -1,4 +1,5 @@
 """Unified presentation layer for local ACR Rally Club web pages. No JS frameworks."""
+from i18n import tr
 from html import escape
 
 CSS = r"""
@@ -54,9 +55,9 @@ FILTER_JS = r"""
   const tabs = Array.from(document.querySelectorAll('[data-target-panel]'));
   const panels = Array.from(document.querySelectorAll('.classification-panel'));
   function apply(){
-    const text = (search && search.value || '').trim().toLocaleLowerCase('pl');
+    const text = (search && search.value || '').trim().toLocaleLowerCase(document.documentElement.lang);
     document.querySelectorAll('tr[data-driver]').forEach(row=>{
-      row.hidden = !!text && !row.dataset.driver.toLocaleLowerCase('pl').includes(text);
+      row.hidden = !!text && !row.dataset.driver.toLocaleLowerCase(document.documentElement.lang).includes(text);
     });
   }
   tabs.forEach(btn=>btn.addEventListener('click',()=>{
@@ -71,38 +72,25 @@ FILTER_JS = r"""
 
 RALLY_FILTER_JS = r"""<script>
 (function(){const input=document.getElementById('driver-search');if(!input)return;
-input.addEventListener('input',()=>{const val=input.value.toLocaleLowerCase('pl');
-document.querySelectorAll('tr[data-driver]').forEach(tr=>tr.hidden=!tr.dataset.driver.toLocaleLowerCase('pl').includes(val))})})();
+input.addEventListener('input',()=>{const val=input.value.toLocaleLowerCase(document.documentElement.lang);
+document.querySelectorAll('tr[data-driver]').forEach(tr=>tr.hidden=!tr.dataset.driver.toLocaleLowerCase(document.documentElement.lang).includes(val))})})();
 </script>"""
 
 def shell(title, content, *, active='rallies', footer=True, scripts=''):
-    nav = [('rallies','/','Rajdy'),('seasons','/seasons','Wyniki i klasyfikacje'),('club','/club','Mój profil'),('launcher','/launcher','Launcher'),('guide','/guide','Jak wystartować')]
+    nav = [('rallies','/',tr('Rallies')),('seasons','/seasons',tr('Results and standings')),('club','/club',tr('My profile')),('launcher','/launcher','Launcher'),('guide','/guide',tr('Getting started'))]
     links = ''.join('<a href="'+href+'"'+(' aria-current="page"' if active==ident else '')+'>'+escape(label)+'</a>' for ident,href,label in nav)
     heading = ('<!doctype html><html lang="pl"><head><meta charset="utf-8">'
                '<meta name="viewport" content="width=device-width,initial-scale=1">'
-               '<title>'+escape(title)+'</title><style>'+CSS+'</style></head><body>'
-               '<div class="sitebar"><div class="sitebar-in">'
-               '<a href="/" class="brand"><span class="brand-symbol">AC</span>'
-               '<span>ACR RALLY CLUB<span class="brand-sub">Rally championship</span></span></a>'
-               '<nav class="site-nav" aria-label="Nawigacja główna">'+links+'</nav>'
+               '<title>'+escape(title)+'</title><style>'+CSS+tr('</style></head><body><div class="sitebar"><div class="sitebar-in"><a href="/" class="brand"><span class="brand-symbol">AC</span><span>ACR RALLY CLUB<span class="brand-sub">Rally championship</span></span></a><nav class="site-nav" aria-label="Main navigation">')+links+'</nav>'
                '</div></div><main id="main">')
-    tail=('<footer class="site-footer">ACR Rally Club · Wyniki po weryfikacji · DNF = 0 pkt'
-          '</footer>' if footer else '')
-    return heading+content+tail+'</main>'+scripts+'</body></html>'
+    tail=(tr('<footer class="site-footer">ACR Rally Club · Results subject to verification · DNF = 0 points</footer>') if footer else '')
+    return heading+content+tail+'</main>'+tr(scripts)+'</body></html>'
 
 
 def admin_shell(page, active='admin'):
     """Inject uniform top navigation and theme, preserving all V5 admin forms and JS."""
-    links = ('<a href="/">Rajdy</a>'
-             '<a href="/seasons">Wyniki i klasyfikacje</a>'
-             '<a href="/club">Mój profil</a>'
-             '<a href="/guide">Poradnik</a>'
-             '<a class="nav-admin" href="/admin">Panel rajdów</a>'
-             '<a class="nav-admin" href="/admin/seasons">Panel sezonów</a>')
-    bar = ('<div class="sitebar"><div class="sitebar-in">'
-           '<a href="/" class="brand"><span class="brand-symbol">AC</span>'
-           '<span>ACR RALLY CLUB<span class="brand-sub">Administrator</span></span></a>'
-           '<nav class="site-nav" aria-label="Nawigacja główna">'+links+'</nav>'
+    links = (tr('<a href="/">Rallies</a><a href="/seasons">Results and standings</a><a href="/club">My profile</a><a href="/guide">Guide</a><a class="nav-admin" href="/admin">Rally administration</a><a class="nav-admin" href="/admin/seasons">Season administration</a>'))
+    bar = (tr('<div class="sitebar"><div class="sitebar-in"><a href="/" class="brand"><span class="brand-symbol">AC</span><span>ACR RALLY CLUB<span class="brand-sub">Administrator</span></span></a><nav class="site-nav" aria-label="Main navigation">')+links+'</nav>'
            '</div></div>')
     return page.replace('</head>', '<style>'+CSS+'</style></head>', 1).replace(
         '<body>', '<body class="acr-admin">'+bar, 1)

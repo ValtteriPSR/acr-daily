@@ -1,5 +1,6 @@
 """Website registration + one-use launch tickets (server-authoritative, stdlib)."""
 from __future__ import annotations
+from i18n import tr
 from hashlib import sha256
 import hmac
 import secrets
@@ -17,7 +18,7 @@ def digest(token):
 
 def install_tables(store):
     with store.lock:
-        store.db.executescript('''
+        store.db.executescript(r"""
           CREATE TABLE IF NOT EXISTS web_sessions (
             session_hash TEXT PRIMARY KEY,
             player_id INTEGER NOT NULL REFERENCES players(id),
@@ -33,7 +34,7 @@ def install_tables(store):
           CREATE TABLE IF NOT EXISTS launch_leases (
             player_id INTEGER PRIMARY KEY REFERENCES players(id), expires REAL NOT NULL
           );
-        ''')
+        """)
 
 
 def enroll(store, event_id, nickname):
@@ -65,19 +66,19 @@ def mint_ticket(store, cookie, event_id):
         try:
             player = browser_player(store, cookie, event_id)
             if player is None:
-                raise Fault(401, 'Zarejestruj nick na tej przeglądarce')
+                raise Fault(401, tr('Register a nickname in this browser'))
             row, _config = store.event(event_id)
             now = time.time()
             if not row['opens'] <= now <= row['closes']:
-                raise Fault(409, 'Rajd jest zamknięty')
+                raise Fault(409, tr('The rally is closed'))
             if player['status'] not in ('registered','ready'):
-                raise Fault(409, 'Próba jest już rozpoczęta lub rajd zakończony')
+                raise Fault(409, tr('The attempt has started or the rally has ended'))
             leased = store.db.execute('SELECT expires FROM launch_leases WHERE player_id=?', (player['id'],)).fetchone()
             if leased is not None and leased['expires'] > now:
-                raise Fault(409, 'Launcher już uruchomiony. Poczekaj na start OS-u albo upływ 5 minut.')
+                raise Fault(409, tr('The launcher is already running. Wait for the stage to start or for 5 minutes to pass.'))
             existing = store.db.execute('SELECT expires FROM launch_tickets WHERE player_id=?', (player['id'],)).fetchone()
             if existing is not None and existing['expires'] > now:
-                raise Fault(409, 'Bilet RUN został już wygenerowany. Poczekaj 60 sekund lub użyj poprzedniej strony.')
+                raise Fault(409, tr('A RUN ticket has already been issued. Wait 60 seconds or use the previous page.'))
             store.db.execute('DELETE FROM launch_tickets WHERE player_id=? OR expires < ?', (player['id'], now))
             ticket = secrets.token_urlsafe(32)
             store.db.execute('INSERT INTO launch_tickets(ticket_hash,player_id,expires) VALUES(?,?,?)',
@@ -92,7 +93,7 @@ def mint_ticket(store, cookie, event_id):
 def redeem_ticket(store, ticket):
     from server import Fault
     if not isinstance(ticket, str) or not 40 <= len(ticket) <= 128:
-        raise Fault(400, 'Nieprawidłowy bilet uruchomienia')
+        raise Fault(400, tr('Invalid launch ticket'))
     with store.lock:
         store._begin()
         try:
@@ -100,12 +101,12 @@ def redeem_ticket(store, ticket):
               JOIN players p ON p.id=t.player_id WHERE t.ticket_hash=?''', (digest(ticket),)).fetchone()
             now = time.time()
             if row is None or now >= row['expires']:
-                raise Fault(401, 'Bilet nie istnieje, wygasł lub został wykorzystany')
+                raise Fault(401, tr('The ticket does not exist, has expired or has already been used'))
             erow, event = store.event(row['event_id'])
             if not erow['opens'] <= now <= erow['closes']:
-                raise Fault(409, 'Rajd nie jest otwarty')
+                raise Fault(409, tr('The rally is not open'))
             if row['status'] not in ('registered','ready'):
-                raise Fault(409, 'Próba jest już rozpoczęta lub zakończona')
+                raise Fault(409, tr('The attempt has already started or ended'))
             # Remove all outstanding tickets and rotate player bearer atomically.
             store.db.execute('DELETE FROM launch_tickets WHERE player_id=?',(row['id'],))
             token = secrets.token_urlsafe(32)
@@ -133,7 +134,7 @@ def abort_prestart(store, token):
         try:
             player=store._auth(token)
             if player['status'] != 'registered' or player['stage_index'] != 0 or player['started'] is not None:
-                raise Fault(409, 'Nie można wycofać RUN po rozpoczęciu odcinka')
+                raise Fault(409, tr('Cannot cancel RUN after a stage has started'))
             store.db.execute('DELETE FROM launch_leases WHERE player_id=?', (player['id'],))
             store.db.execute('UPDATE players SET token_hash=? WHERE id=?',
                              (digest(secrets.token_urlsafe(32)), player['id']))

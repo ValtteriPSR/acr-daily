@@ -31,6 +31,7 @@ def check_server(*, distribution=False) -> list[str]:
         'server_local/server.py', 'server_local/admin_panel.py', 'server_local/seasons.py',
         'server_local/web_launcher.py', 'server_local/admin_access.py', 'server_local/public_security.py',
         'server_local/driver_guide.py', 'deploy/compose.yaml',
+        'server_local/i18n.py', 'server_local/translations/pl.json',
         'deploy/Caddyfile', 'deploy/Dockerfile', '.github/workflows/launcher-release.yml',
         'tools/vendor_acr_daily.py', 'tools/export_club_catalog.py', 'LICENSE',
     ]

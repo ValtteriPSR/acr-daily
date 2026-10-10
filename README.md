@@ -1,37 +1,48 @@
-# ACR Rally Club — hosting w internecie
+# ACR Rally Club
 
-Wersja klubowa oparta na [ACR Daily](https://github.com/khanhonthetrack/acr-daily).
-Serwer i panel działają w chmurze. Gracz potrzebuje Assetto Corsa Rally na Windows
-oraz gotowego klienta EXE pobranego ze strony klubu. Administrator obsługuje klub
-w przeglądarce, bez instalowania serwera, Pythona, Dockera ani narzędzi Git.
+A web-based rally club for Assetto Corsa Rally, based on
+[ACR Daily](https://github.com/khanhonthetrack/acr-daily). Manage rallies,
+championships, divisions and teams in a browser. Players use a Windows launcher
+to prepare Rally Weekend, read telemetry and submit official results.
 
-Strona: https://acr-rally-club.onrender.com/  
-Gotowy instalator Windows: [wydanie v6.3.1-cloud.1](https://github.com/ValtteriPSR/acr-daily/releases/tag/v6.3.1-cloud.1).
+**[Open the club](https://acr-rally-club.onrender.com/)** ·
+**[Download the Windows installer](https://github.com/ValtteriPSR/acr-daily/releases/tag/v6.3.1-cloud.1)**
 
-## Wdrożenie darmowe
+The website supports Polish and English. Use **PL / EN** in the navigation bar;
+the browser remembers your choice. Rally names, nicknames and team names remain
+exactly as entered by their authors.
 
-- **Render Free**: aplikacja Python i chroniący ją Caddy, publiczny HTTPS.
-- **Neon Free**: trwała baza PostgreSQL z kontami, rajdami, sezonami i wynikami.
-- **GitHub Actions**: testy serwera, kompilacja klienta na Windows i publikacja EXE.
+## Guides
 
-Instrukcja użytkowania i wdrożenia: [PORADNIK-INTERNET-PL.md](PORADNIK-INTERNET-PL.md).
+- [Administration and hosting](docs/ADMINISTRATION.md)
+- [Player guide](docs/PLAYER-GUIDE.md)
+- [Development, testing and releases](docs/DEVELOPMENT.md)
 
-Render usypia bezczynny serwis po około 15 minutach; pierwsze wejście po przerwie
-może wymagać około minuty oczekiwania. Dane pozostają w Neon. Darmowe plany mają
-limity i nie zapewniają gwarantowanej dostępności. Baza SQLite na lokalnym dysku
-Render nie służy do przechowywania danych klubu.
+## Hosting
 
-## Pliki wdrożenia
+The deployed application runs on Render Free in Frankfurt, with persistent
+PostgreSQL storage on Neon Free. Administrators need no local server, Python,
+Docker or Git tools. Players need Windows, the game installed through Steam and
+the compiled launcher.
 
-- `render.yaml`: konfiguracja usługi Free we Frankfurcie.
-- `deploy/Dockerfile.render`, `deploy/Caddyfile.render`, `deploy/run_render.py`:
-  aplikacja i jej brama z dodatkowym hasłem administratora.
-- `server_local/database.py`: obsługa PostgreSQL i zgodność dotychczasowej SQLite.
-- `.github/workflows/server-checks.yml`: testy SQLite i PostgreSQL.
-- `.github/workflows/launcher-release.yml`: budowanie i wydawanie Windows EXE.
+Render suspends idle free services after 15 minutes. The next visit may take
+about a minute to load. Accounts and results stay in Neon across restarts.
+Free plans have usage limits and do not guarantee uninterrupted availability.
+The Neon database is separate from Render's time-limited free database product.
 
-## Autorstwo
+## Repository
 
-Oryginalny ACR Daily: copyright 2026 Ngoc Khanh Nguyen, licencja MIT.
-Zachowano plik [LICENSE](LICENSE). Moduły gry do launchera pobierane są podczas
-budowania z przypiętej rewizji i sprawdzane względem ich oczekiwanych sum.
+`rally-club` is the default application and deployment branch. This repository
+is a real fork of ACR Daily; the upstream branch and Git history remain available.
+Historical duplicate guides were consolidated into the three current guides
+above. Previous versions can still be found in Git history.
+
+The server is self-contained. The Windows build downloads six upstream client
+modules from a pinned commit and verifies their Git blob hashes before packaging.
+The precompiled installer is available in GitHub Releases and through the website.
+
+## License and credits
+
+Original ACR Daily: Copyright (c) 2026 Ngoc Khanh Nguyen, MIT License.
+See [LICENSE](LICENSE). Upstream catalog files and client module provenance are
+recorded in the build tools and release manifest.

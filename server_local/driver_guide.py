@@ -1,40 +1,41 @@
 """Public driver-facing, read-only handbook. Works without JS frameworks."""
+from i18n import tr
 from site_theme import shell
 
 
 def page():
-    main=r"""
-<section class="hero"><span class="eyebrow">Poradnik kierowcy / Start online</span>
-<h1>Jak wystartować w ACR Rally Club?</h1>
-<p>Instalujesz launcher tylko raz. Potem rajdy uruchamiasz przyciskiem RUN na stronie klubu. Wszystkie ustawienia Rally Weekend przygotowuje aplikacja.</p>
-<p><a class="btn-link" href="/download">⬇ POBIERZ LAUNCHER DLA WINDOWS (.EXE)</a>　 <a class="btn-link" href="/club">Załóż konto klubowe →</a></p>
+    main=tr(r"""
+<section class="hero"><span class="eyebrow">Driver guide / Online start</span>
+<h1>How to start in ACR Rally Club?</h1>
+<p>Install the launcher once. Then start rallies using the RUN button on the club website. The application prepares all Rally Weekend settings.</p>
+<p><a class="btn-link" href="/download">⬇ DOWNLOAD THE WINDOWS LAUNCHER (.EXE)</a>　 <a class="btn-link" href="/club">Create a club account →</a></p>
 </section>
-<section class="card"><span class="section-kicker">Przed pierwszym startem</span><h2>Co jest potrzebne?</h2>
-<p>Komputer Windows 10/11, Assetto Corsa Rally zainstalowane przez Steam, działające połączenie z Internetem i launcher klubu. Do korzystania ze strony nie musisz instalować Pythona, Gita ani uruchamiać plików .bat.</p>
-<p>Launcher pracuje lokalnie, ponieważ tylko program uruchomiony na Twoim komputerze może przygotować zapis gry, uruchomić Steam i odczytać telemetrię.</p></section>
-<section class="card"><span class="section-kicker">Krok po kroku</span><h2>6 kroków do startu</h2>
+<section class="card"><span class="section-kicker">Before your first rally</span><h2>What do you need?</h2>
+<p>A Windows 10/11 computer, Assetto Corsa Rally installed through Steam, an internet connection and the club launcher. You do not need Python, Git or .bat files to use the website.</p>
+<p>The launcher runs locally because an application on your computer is needed to prepare the game save, start Steam and read telemetry.</p></section>
+<section class="card"><span class="section-kicker">Step by step</span><h2>6 steps to start</h2>
 <ol>
-<li><strong>Zainstaluj launcher:</strong> kliknij <a href="/download">Pobierz EXE</a>, uruchom instalator i potwierdź instalację protokołu <code>acrclub://</code>. Instalator nie wymaga ręcznego budowania programu.</li>
-<li><strong>Utwórz konto klubowe:</strong> przejdź do <a href="/club">Mój profil</a>, wybierz nick i bezpiecznie zapisz kod odzyskiwania. Ten nick zostanie zapamiętany przez przeglądarkę.</li>
-<li><strong>Sprawdź dywizję:</strong> jeśli sezon ma dywizje, poczekaj na przydzielenie przez administratora. Bez przydziału nie można wystartować.</li>
-<li><strong>Zapisz się do rajdu (możesz wcześniej, przed jego startem):</strong> otwórz <a href="/">Rajdy</a>, wybierz rundę i kliknij <strong>ZAPISZ SIĘ</strong>. Sprawdź datę, samochody, OS-y, pogodę i regulamin.</li>
-<li><strong>Po otwarciu rajdu (UTC+2) kliknij RUN RALLY:</strong> przeglądarka poprosi o otwarcie ACR Club Launcher — zaakceptuj. Zamknij wcześniej grę, żeby launcher mógł bezpiecznie przygotować zapis i utworzyć jego kopię.</li>
-<li><strong>Przejdź do START STAGE:</strong> launcher uruchomi ACR przez Steam. Samodzielnie wybierz <strong>Racing → Rally → Rally Weekend → START RALLY</strong>, opony i następnie <strong>START STAGE</strong> i jedziesz. Launcher zostaw uruchomiony do końca rajdu.</li>
+<li><strong>Install the launcher:</strong> click <a href="/download">Download EXE</a>, run the installer and confirm registration of the protocol <code>acrclub://</code>. The installer does not require you to compile the application.</li>
+<li><strong>Create a club account:</strong> go to <a href="/club">My profile</a>, choose a nickname and keep your recovery code safe. The browser will remember your nickname.</li>
+<li><strong>Check your division:</strong> if the season uses divisions, wait for the administrator to assign yours. You cannot start without an assignment.</li>
+<li><strong>Enter the rally (you can register before it opens):</strong> open <a href="/">Rallies</a>, choose a round and click <strong>REGISTER FOR RALLY</strong>. Check the dates, cars, stages, weather and rules.</li>
+<li><strong>Once the rally opens (UTC+2), click RUN RALLY:</strong> allow the browser to open ACR Club Launcher. Close the game first so the launcher can safely prepare and back up the save.</li>
+<li><strong>Continue to START STAGE:</strong> the launcher will start ACR through Steam. Manually select <strong>Racing → Rally → Rally Weekend → START RALLY</strong>, tires and then <strong>START STAGE</strong> and start driving. Keep the launcher running until the rally ends.</li>
 </ol></section>
-<section class="card"><span class="section-kicker">W trakcie rajdu</span><h2>Jak działa Rally Weekend?</h2>
-<p>Konfiguracja rajdu obejmuje wszystkie OS-y, warunki i zasady uszkodzeń. Możesz wybierać samochód z listy dopuszczonej przez organizatora zgodnie z zasadami wydarzenia. Uruchomiony launcher monitoruje rozpoczęcie i zakończenie OS-u, kontrole ustawień oraz utratę połączenia.</p>
-<p><strong>Każdy OS ma jedną próbę.</strong> Restart, wycofanie się lub zamknięcie gry podczas aktywnego przejazdu powoduje DNF całego rajdu. DNF daje 0 punktów generalnych, dywizyjnych i Power Stage. Po ostatnim OS-ie pozwól grze zapisać oficjalne czasy i kary.</p>
-<p>Wyniki każdego OS-u: RAW, kary i oficjalny czas, znajdują się na stronie rajdu. Klasyfikacje sezonowe, dywizji i teamów: <a href="/seasons">Wyniki i klasyfikacje</a>. Punkty zostaną przyznane po zamknięciu rundy. Power Stage: najszybsi ukończyciele ostatniego OS-u zdobywają domyślnie 5,4,3,2,1 pkt. Liczy się oficjalny czas z karami.</p></section>
-<section class="card"><span class="section-kicker">Ważne uwagi</span><h2>Ręczne menu i bezpieczeństwo zapisu</h2>
-<p>Wersja V6.3 nie wykonuje żadnych automatycznych naciśnięć klawiszy ani kliknięć w menu ACR. Kierowca ręcznie przechodzi do Rally Weekend. Konfiguracja rajdu jest wcześniej zapisywana w .sav przez launcher przy zamkniętej grze.</p>
-<p>W takim przypadku przejdź ręcznie: <strong>Racing → Rally → Rally Weekend → START RALLY → automatyczny dobór opon (J) → CONFIRM AND START RALLY → START STAGE</strong>.</p>
-<p>Launcher wykonuje kopię zapisu <code>PlayerDataSaveSlot.sav</code> przed modyfikacją. Nie modyfikuj zapisu ręcznie podczas rajdu; nie udostępniaj nikomu swojego kodu odzyskiwania.</p></section>
-<section class="card"><span class="section-kicker">Pytania i problemy</span><h2>Co zrobić, gdy coś nie działa?</h2>
-<details class="round"><summary>Przycisk RUN niczego nie otwiera</summary><p>Sprawdź, czy instalator EXE został uruchomiony, czy protokół <code>acrclub://</code> jest zarejestrowany oraz czy przeglądarka nie zablokowała otwarcia aplikacji. Spróbuj ponownie z poziomu strony rajdu.</p></details>
-<details class="round"><summary>Gra nie otwiera odpowiedniego menu</summary><p>Sprawdź, czy gra jest na pierwszym planie. Nie klikaj w menu podczas automatycznej nawigacji. Jeśli zostanie przerwana — przejdź ręcznie trasą wskazaną powyżej. Automatyczna nawigacja nie jest gwarantowana po każdej aktualizacji gry.</p></details>
-<details class="round"><summary>Nie pamiętam nicku lub zmieniłem komputer</summary><p>Otwórz <a href="/club">Mój profil</a> i użyj nicku oraz kodu odzyskiwania otrzymanego przy rejestracji.</p></details>
-<details class="round"><summary>Rajd zakończony, ale brak wyniku</summary><p>Wróć do strony rajdu i sprawdź status. Poczekaj, aż ACR zapisze wyniki wszystkich OS-ów, a launcher je odczyta. Przy zgłaszaniu problemu podaj administratorowi log z <code>%LOCALAPPDATA%\ACR Rally Club\player-events.log</code> (przejrzyj go pod kątem danych prywatnych).</p></details>
-<details class="round"><summary>Czy można wyjść z gry między OS-ami?</summary><p>Launcher kontroluje postęp i status sesji. Najbezpieczniej pozostać w grze i kontynuować po serwisie. Nie zamykaj launchera podczas rajdu; wyjście podczas aktywnego OS-u oznacza DNF.</p></details>
+<section class="card"><span class="section-kicker">During the rally</span><h2>How does Rally Weekend work?</h2>
+<p>The rally configuration includes all stages, conditions and damage rules. Choose a car permitted by the organizer under the event rules. The launcher monitors stage starts and finishes, settings checks and connection loss.</p>
+<p><strong>Every stage has one attempt.</strong> Restarting, retiring or closing the game during an active attempt results in DNF for the whole rally. DNF gives zero overall, division and Power Stage points. After the last stage, allow the game to save official times and penalties.</p>
+<p>Each stage's raw time, penalties and official time are on the rally page. Season, division and team standings: <a href="/seasons">Results and standings</a>. Points are awarded after the round closes. Power Stage: the fastest finishers on the last stage receive 5, 4, 3, 2, 1 points by default. Official time including penalties counts.</p></section>
+<section class="card"><span class="section-kicker">Important notes</span><h2>Manual menus and save safety</h2>
+<p>Version V6.3 does not press keys or click ACR menus automatically. The driver navigates to Rally Weekend manually. The launcher writes the rally configuration to the .sav file while the game is closed.</p>
+<p>Navigate manually: <strong>Racing → Rally → Rally Weekend → START RALLY → automatic tire selection (J) → CONFIRM AND START RALLY → START STAGE</strong>.</p>
+<p>The launcher backs up <code>PlayerDataSaveSlot.sav</code> before making changes. Do not edit the save manually during a rally or share your recovery code.</p></section>
+<section class="card"><span class="section-kicker">Questions and troubleshooting</span><h2>What if something does not work?</h2>
+<details class="round"><summary>RUN does not open anything</summary><p>Check that the EXE installer has run, that the protocol <code>acrclub://</code> is registered, and that your browser has not blocked the application. Try again from the rally page.</p></details>
+<details class="round"><summary>The game opens the wrong menu</summary><p>The launcher does not navigate menus automatically. Follow the manual route above to Rally Weekend and START STAGE.</p></details>
+<details class="round"><summary>I forgot my nickname or changed computers</summary><p>Open <a href="/club">My profile</a> and use the nickname and recovery code you received when registering.</p></details>
+<details class="round"><summary>The rally is finished but no result appears</summary><p>Return to the rally page and check your status. Wait for ACR to save all stage results and for the launcher to read them. When reporting a problem, give the administrator the log at <code>%LOCALAPPDATA%\ACR Rally Club\player-events.log</code> (review it for private data first).</p></details>
+<details class="round"><summary>Can I leave the game between stages?</summary><p>The launcher monitors progress and session status. It is safest to stay in the game and continue after service. Do not close the launcher during the rally; leaving during an active stage means DNF.</p></details>
 </section>
-"""
-    return shell('Poradnik kierowcy — ACR Rally Club',main,active='guide')
+""")
+    return shell(tr('Driver guide — ACR Rally Club'),main,active='guide')

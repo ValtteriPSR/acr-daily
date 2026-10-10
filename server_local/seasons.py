@@ -4,6 +4,7 @@ Stdlib/SQLite only. Scores are derived from finalized per-stage results and neve
 accepted as a value supplied by the client. A rally scores once its window closes.
 """
 from __future__ import annotations
+from i18n import tr
 from datetime import datetime, timezone
 from hashlib import sha256
 import hmac
@@ -43,13 +44,13 @@ def _date(value):
         if d.tzinfo is None: raise ValueError()
         return d.timestamp()
     except (TypeError, ValueError):
-        _fault(400, 'Data wymaga pełnego formatu ISO z UTC/strefą czasową')
+        _fault(400, tr('Dates require full ISO format with UTC or a timezone'))
 
 
 def _scores(values):
     if not isinstance(values, list) or not 1 <= len(values) <= 100 or any(
             type(v) is not int or not 1 <= v <= 1000 for v in values):
-        _fault(400, 'Punktacja: od 1 do 100 dodatnich wartości całkowitych (maks. 1000)')
+        _fault(400, tr('Points: 1–100 positive integers (maximum 1000)'))
     return values
 
 
@@ -60,27 +61,27 @@ def _power_scores(values):
     """
     if not isinstance(values, list) or len(values) > 100 or any(
             type(v) is not int or not 0 <= v <= 1000 for v in values):
-        _fault(400, 'Power Stage: maks. 100 wartości 0–1000; pusta lista wyłącza premię')
+        _fault(400, tr('Power Stage: up to 100 values from 0 to 1000; an empty list disables the bonus'))
     return values
 
 
 def _validate_season(data):
-    if not isinstance(data,dict): _fault(400,'Nieprawidłowa konfiguracja sezonu')
+    if not isinstance(data,dict): _fault(400,tr('Invalid season configuration'))
     name = str(data.get('name','')).strip()
-    if not 3 <= len(name) <= 120: _fault(400,'Nazwa sezonu 3–120 znaków')
+    if not 3 <= len(name) <= 120: _fault(400,tr('Season name: 3–120 characters'))
     opens, closes = _date(data.get('opensAt')), _date(data.get('closesAt'))
-    if not opens < closes or closes-opens > 730*86400: _fault(400,'Zakres sezonu jest nieprawidłowy')
+    if not opens < closes or closes-opens > 730*86400: _fault(400,tr('Invalid season date range'))
     general=_scores(data.get('generalPoints',DEFAULT_GENERAL))
     division=_scores(data.get('divisionPoints',DEFAULT_DIVISION))
     power=_power_scores(data.get('powerStagePoints',DEFAULT_POWER_STAGE))
     mode=data.get('teamMode','combined')
-    if mode not in TEAM_MODES: _fault(400,'Nieznany tryb punktów zespołowych')
+    if mode not in TEAM_MODES: _fault(400,tr('Unknown team scoring mode'))
     return name, opens, closes, general, division, power, mode
 
 
 def install(store):
     with store.lock:
-        store.db.executescript('''
+        store.db.executescript(r"""
         CREATE TABLE IF NOT EXISTS club_members (
           id INTEGER PRIMARY KEY, nickname TEXT NOT NULL, nickname_key TEXT NOT NULL UNIQUE,
           recovery_hash TEXT NOT NULL, created REAL NOT NULL);
@@ -109,7 +110,7 @@ def install(store):
           division_id INTEGER REFERENCES season_divisions(id),
           team_id INTEGER REFERENCES season_teams(id),
           PRIMARY KEY(season_id,member_id));
-        ''')
+        """)
         cols={r['name'] for r in store.db.execute('PRAGMA table_info(players)')}
         if 'club_member_id' not in cols:
             store.db.execute('ALTER TABLE players ADD COLUMN club_member_id INTEGER REFERENCES club_members(id)')
@@ -166,7 +167,7 @@ def club_register(store, nickname):
             return {'nickname':nick,'token':token,'recovery':recovery}
         except sqlite3.IntegrityError:
             if store.db.in_transaction: store.db.execute('ROLLBACK')
-            _fault(409,'Ten nick jest już zapisany do klubu. Użyj kodu odzyskiwania.')
+            _fault(409,tr('This nickname is already registered with the club. Use your recovery code.'))
         except Exception:
             if store.db.in_transaction: store.db.execute('ROLLBACK')
             raise
@@ -176,11 +177,11 @@ def club_recover(store, nickname, recovery):
     from server import nick_key
     _nick,key=nick_key(nickname)
     if not isinstance(recovery,str) or not 32 <= len(recovery) <= 128:
-        _fault(401,'Niepoprawny kod odzyskiwania')
+        _fault(401,tr('Invalid recovery code'))
     with store.lock:
         row=store.db.execute('SELECT * FROM club_members WHERE nickname_key=?',(key,)).fetchone()
         if row is None or not hmac.compare_digest(row['recovery_hash'],_hash(recovery)):
-            _fault(401,'Nick lub kod odzyskiwania niepoprawny')
+            _fault(401,tr('Invalid nickname or recovery code'))
         return {'nickname':row['nickname'],'token':_new_session(store,row['id'])}
 
 
@@ -194,13 +195,13 @@ def club_join(store,event_id,member_id):
             # Registration opens when the admin publishes the rally.
             # The stage attempt is still forbidden until opensAt.
             if now >= erow['closes']:
-                _fault(409,'Zapisy zamknięte: rajd już się zakończył')
+                _fault(409,tr('Registration is closed: the rally has ended'))
             member=store.db.execute('SELECT * FROM club_members WHERE id=?',(member_id,)).fetchone()
-            if member is None: _fault(401,'Nie znaleziono członka klubu')
+            if member is None: _fault(401,tr('Club member not found'))
             existing=store.db.execute('''SELECT id FROM players WHERE event_id=?
                                 AND (club_member_id=? OR nickname_key=?)''',
                                 (event_id,member_id,member['nickname_key'])).fetchone()
-            if existing: _fault(409,'Ten nick już bierze udział w rajdzie')
+            if existing: _fault(409,tr('This nickname is already entered in the rally'))
             token=secrets.token_urlsafe(32)
             cur=store.db.execute('''INSERT INTO players
                 (event_id,nickname,nickname_key,token_hash,status,created,last_seen,club_member_id)
@@ -237,7 +238,7 @@ def ensure_division_assigned(store,event_id,member_id):
                         WHERE a.season_id=? AND a.member_id=?''',
                         (season['season_id'],member_id)).fetchone()
         if assigned is None or assigned['division_id'] is None:
-            _fault(409,'Poczekaj aż administrator przydzieli Cię do dywizji sezonu')
+            _fault(409,tr('Wait for the administrator to assign your season division'))
         return True
 
 
@@ -248,7 +249,7 @@ def mint_club_ticket(store,event_id,member_id):
     from web_launcher import digest, WEB_SESSION_SECONDS
     with store.lock:
         p=club_player(store,event_id,member_id)
-        if p is None:_fault(401,'Najpierw zapisz się do tego rajdu')
+        if p is None:_fault(401,tr('Register for this rally first'))
         ensure_division_assigned(store,event_id,member_id)
         t=secrets.token_urlsafe(32)
         store.db.execute('INSERT INTO web_sessions(session_hash,player_id,expires) VALUES(?,?,?)',
@@ -278,7 +279,7 @@ def _iso(epoch):
 def season_config(store,season_id):
     with store.lock:
         s=store.db.execute('SELECT * FROM seasons WHERE id=?',(season_id,)).fetchone()
-        if not s:_fault(404,'Nie znaleziono sezonu')
+        if not s:_fault(404,tr('Season not found'))
         events=[dict(r) for r in store.db.execute('''SELECT e.id,e.config,e.opens,e.closes,
                    se.position,se.general_points,se.division_points,se.power_points
                    FROM season_events se JOIN events e ON e.id=se.event_id
@@ -324,13 +325,13 @@ def save_season(store,data,season_id=None):
                     (season_id,name,opens,closes,json.dumps(gen),json.dumps(div),json.dumps(power),mode,_now()))
             else:
                 if _season_locked(store,season_id):
-                    _fault(409,'Sezon ma rozpoczęte przejazdy — zasady punktacji są zablokowane')
+                    _fault(409,tr('Season attempts have started — scoring rules are locked'))
                 if not store.db.execute('SELECT 1 FROM seasons WHERE id=?',(season_id,)).fetchone():
-                    _fault(404,'Nie znaleziono sezonu')
+                    _fault(404,tr('Season not found'))
                 invalid=store.db.execute('''SELECT 1 FROM season_events se
                     JOIN events e ON e.id=se.event_id WHERE se.season_id=?
                     AND (e.opens<? OR e.closes>?) LIMIT 1''',(season_id,opens,closes)).fetchone()
-                if invalid:_fault(409,'Nowe daty nie obejmują wszystkich rajdów sezonu')
+                if invalid:_fault(409,tr('The new dates do not cover all season rallies'))
                 store.db.execute('''UPDATE seasons SET name=?,opens=?,closes=?,general_points=?,
                      division_points=?,power_points=?,team_mode=? WHERE id=?''',
                      (name,opens,closes,json.dumps(gen),json.dumps(div),json.dumps(power),mode,season_id))
@@ -343,23 +344,23 @@ def save_season(store,data,season_id=None):
 
 def set_rallies(store,season_id,event_ids):
     if not isinstance(event_ids,list) or len(event_ids)>MAX_RALLIES or len(set(event_ids))!=len(event_ids):
-        _fault(400,'Lista rajdów musi zawierać maksymalnie 100 różnych wydarzeń')
+        _fault(400,tr('The rally list must contain at most 100 distinct events'))
     with store.lock:
         store._begin()
         try:
             config=season_config(store,season_id)
             if _season_locked(store,season_id):
-                _fault(409,'Nie można zmieniać kalendarza sezonu po rozpoczęciu prób')
+                _fault(409,tr('Cannot change the season calendar after attempts begin'))
             for eid in event_ids:
-                if not isinstance(eid,str): _fault(400,'Nieprawidłowy ID rajdu')
+                if not isinstance(eid,str): _fault(400,tr('Invalid rally ID'))
                 row, event=store.event(eid)
                 if _date(event['opensAt']) < _date(config['opensAt']) or _date(event['closesAt']) > _date(config['closesAt']):
-                    _fault(400,'Termin rajdu musi mieścić się w datach sezonu: '+eid)
+                    _fault(400,tr('The rally dates must fall within the season window: ')+eid)
                 other=store.db.execute('SELECT season_id FROM season_events WHERE event_id=?',(eid,)).fetchone()
-                if other and other['season_id']!=season_id:_fault(409,'Rajd należy już do innego sezonu: '+eid)
+                if other and other['season_id']!=season_id:_fault(409,tr('The rally already belongs to another season: ')+eid)
                 if not other and store.db.execute('''SELECT 1 FROM players
                         WHERE event_id=? AND status<>'registered' LIMIT 1''',(eid,)).fetchone():
-                    _fault(409,'Nie można wstecznie przypisać rozpoczętego rajdu do sezonu: '+eid)
+                    _fault(409,tr('Cannot assign a rally to a season after it has started: ')+eid)
             overrides={r['event_id']:(r['general_points'],r['division_points'],r['power_points'])
                 for r in store.db.execute('SELECT * FROM season_events WHERE season_id=?',(season_id,))}
             store.db.execute('DELETE FROM season_events WHERE season_id=?',(season_id,))
@@ -390,10 +391,10 @@ def set_rally_points(store,season_id,event_id,general,division,power=None):
         try:
             found=store.db.execute('''SELECT 1 FROM season_events WHERE season_id=? AND event_id=?''',
                                    (season_id,event_id)).fetchone()
-            if not found:_fault(404,'Rajd nie należy do sezonu')
+            if not found:_fault(404,tr('The rally does not belong to the season'))
             played=store.db.execute('''SELECT 1 FROM players WHERE event_id=? AND status<>'registered' LIMIT 1''',
                                     (event_id,)).fetchone()
-            if played:_fault(409,'Nie można zmieniać punktacji po rozpoczęciu rajdu')
+            if played:_fault(409,tr('Cannot change scoring after the rally begins'))
             store.db.execute('''UPDATE season_events SET general_points=?,division_points=?,power_points=?
                             WHERE season_id=? AND event_id=?''',(gp,dp,pp,season_id,event_id))
             store.db.execute('COMMIT')
@@ -404,18 +405,18 @@ def set_rally_points(store,season_id,event_id,general,division,power=None):
 
 
 def add_group(store,season_id,kind,name,capacity=10):
-    if kind not in ('division','team'):_fault(400,'Nieznany rodzaj grupy')
+    if kind not in ('division','team'):_fault(400,tr('Unknown group type'))
     name=str(name or '').strip()
-    if not 2<=len(name)<=60:_fault(400,'Nazwa dywizji/zespołu: 2–60 znaków')
+    if not 2<=len(name)<=60:_fault(400,tr('Division/team name: 2–60 characters'))
     if kind=='team' and (type(capacity) is not int or not 1<=capacity<=MAX_TEAM_SIZE):
-        _fault(400,'Limit teamu musi wynosić od 1 do 10 zawodników')
+        _fault(400,tr('Team capacity must be between 1 and 10 drivers'))
     with store.lock:
         store._begin()
         try:
             season_config(store,season_id)
             if kind=='division':
                 count=store.db.execute('SELECT COUNT(*) FROM season_divisions WHERE season_id=?',(season_id,)).fetchone()[0]
-                if count>=MAX_DIVISIONS:_fault(409,'Maksymalnie 10 dywizji')
+                if count>=MAX_DIVISIONS:_fault(409,tr('Maximum 10 divisions'))
                 idx=count
                 # sparse index handling after a deletion
                 taken={r[0] for r in store.db.execute('SELECT sort_index FROM season_divisions WHERE season_id=?',(season_id,))}
@@ -429,62 +430,62 @@ def add_group(store,season_id,kind,name,capacity=10):
             return {'ok':True,'id':cur.lastrowid}
         except sqlite3.IntegrityError:
             if store.db.in_transaction:store.db.execute('ROLLBACK')
-            _fault(409,'Taka nazwa już istnieje')
+            _fault(409,tr('This name already exists'))
         except Exception:
             if store.db.in_transaction:store.db.execute('ROLLBACK')
             raise
 
 
 def rename_group(store,season_id,kind,group_id,name):
-    if kind not in ('division','team'):_fault(400,'Nieznana grupa')
+    if kind not in ('division','team'):_fault(400,tr('Unknown group'))
     table='season_divisions' if kind=='division' else 'season_teams'
     name=str(name or '').strip()
-    if not 2<=len(name)<=60:_fault(400,'Niepoprawna nazwa')
+    if not 2<=len(name)<=60:_fault(400,tr('Invalid name'))
     with store.lock:
         r=store.db.execute(f'SELECT id FROM {table} WHERE season_id=? AND id=?',(season_id,group_id)).fetchone()
-        if not r:_fault(404,'Nie znaleziono grupy')
+        if not r:_fault(404,tr('Group not found'))
         try:store.db.execute(f'UPDATE {table} SET name=? WHERE id=?',(name,group_id))
-        except sqlite3.IntegrityError:_fault(409,'Nazwa już istnieje')
+        except sqlite3.IntegrityError:_fault(409,tr('Name already exists'))
         return {'ok':True}
 
 
 def set_team_capacity(store,season_id,team_id,capacity):
     if type(capacity) is not int or not 1<=capacity<=MAX_TEAM_SIZE:
-        _fault(400,'Limit teamu musi wynosić 1–10')
+        _fault(400,tr('Team capacity must be 1–10'))
     with store.lock:
         team=store.db.execute('SELECT * FROM season_teams WHERE season_id=? AND id=?',
                               (season_id,team_id)).fetchone()
-        if team is None:_fault(404,'Nie znaleziono teamu')
+        if team is None:_fault(404,tr('Team not found'))
         members=store.db.execute('SELECT COUNT(*) FROM season_member_assignments WHERE team_id=? AND season_id=?',
                                  (team_id,season_id)).fetchone()[0]
-        if members>capacity:_fault(409,'Limit jest niższy niż obecna liczba członków teamu')
+        if members>capacity:_fault(409,tr('Capacity is below the current number of team members'))
         store.db.execute('UPDATE season_teams SET capacity=? WHERE id=?',(capacity,team_id))
         return {'ok':True}
 
 
 def delete_group(store,season_id,kind,group_id):
-    if kind not in ('division','team'):_fault(400,'Nieznana grupa')
+    if kind not in ('division','team'):_fault(400,tr('Unknown group'))
     table='season_divisions' if kind=='division' else 'season_teams'
     field='division_id' if kind=='division' else 'team_id'
     with store.lock:
         assigned=store.db.execute(f'''SELECT 1 FROM season_member_assignments
                 WHERE season_id=? AND {field}=? LIMIT 1''',(season_id,group_id)).fetchone()
-        if assigned:_fault(409,'Najpierw usuń przypisania kierowców do grupy')
+        if assigned:_fault(409,tr('Remove driver assignments from the group first'))
         deleted=store.db.execute(f'DELETE FROM {table} WHERE season_id=? AND id=?',(season_id,group_id))
-        if not deleted.rowcount:_fault(404,'Nie znaleziono grupy')
+        if not deleted.rowcount:_fault(404,tr('Group not found'))
         return {'ok':True}
 
 
 def assign_member(store,season_id,member_id,division_id,team_id):
-    if type(member_id) is not int:_fault(400,'Niepoprawny kierowca')
-    if division_id is not None and type(division_id) is not int:_fault(400,'Niepoprawna dywizja')
-    if team_id is not None and type(team_id) is not int:_fault(400,'Niepoprawny team')
+    if type(member_id) is not int:_fault(400,tr('Invalid driver'))
+    if division_id is not None and type(division_id) is not int:_fault(400,tr('Invalid division'))
+    if team_id is not None and type(team_id) is not int:_fault(400,tr('Invalid team'))
     with store.lock:
         store._begin()
         try:
             season_config(store,season_id)
             if not store.db.execute('SELECT 1 FROM club_members WHERE id=?',(member_id,)).fetchone():
-                _fault(404,'Kierowca nie jest zapisany do klubu')
+                _fault(404,tr('The driver is not registered with the club'))
             started=store.db.execute('''SELECT 1 FROM season_events se
                     JOIN players p ON p.event_id=se.event_id
                     WHERE se.season_id=? AND p.club_member_id=?
@@ -492,16 +493,16 @@ def assign_member(store,season_id,member_id,division_id,team_id):
             prior=store.db.execute('''SELECT division_id,team_id FROM season_member_assignments
                         WHERE season_id=? AND member_id=?''',(season_id,member_id)).fetchone()
             if started and (not prior or prior['division_id'] != division_id or prior['team_id'] != team_id):
-                _fault(409,'Nie można przenosić kierowcy między dywizjami/zespołami po starcie rajdu')
-            for table,gid,tag in (('season_divisions',division_id,'dywizja'),('season_teams',team_id,'zespół')):
+                _fault(409,tr('Cannot move a driver between divisions/teams after the rally starts'))
+            for table,gid,tag in (('season_divisions',division_id,'dywizja'),('season_teams',team_id,tr('team'))):
                 if gid is not None and not store.db.execute(f'SELECT 1 FROM {table} WHERE id=? AND season_id=?',
                                     (gid,season_id)).fetchone():
-                    _fault(400,'Nieznana '+tag)
+                    _fault(400,tr('Unknown ')+tag)
             if team_id is not None and (not prior or prior['team_id']!=team_id):
                 count=store.db.execute('''SELECT COUNT(*) FROM season_member_assignments
                         WHERE season_id=? AND team_id=?''',(season_id,team_id)).fetchone()[0]
                 capacity=store.db.execute('SELECT capacity FROM season_teams WHERE id=?',(team_id,)).fetchone()[0]
-                if count>=capacity:_fault(409,f'Team ma już komplet ({capacity} zawodników)')
+                if count>=capacity:_fault(409,f"{tr('The team is full (')}{capacity}{tr(' drivers)')}")
             store.db.execute('''INSERT INTO season_member_assignments(season_id,member_id,division_id,team_id)
                 VALUES(?,?,?,?) ON CONFLICT(season_id,member_id) DO UPDATE SET
                 division_id=excluded.division_id,team_id=excluded.team_id''',
@@ -610,15 +611,8 @@ def members_list_sql(store):
 def club_page(member,csrf):
     field='<input type="hidden" name="csrf" value="'+escape(csrf,quote=True)+'">'
     if member:
-        return ('<h1>ACR Rally Club · profil</h1><section class="card"><h2>Witaj, '+escape(member['nickname'])+
-                '</h2><p>Nick został zapamiętany w tej przeglądarce. Zapisuj się na rajdy pod tym samym kontem.</p>'
-                '<p><a href="/">Wybierz rajd</a> · <a href="/seasons">Sezony</a></p></section>')
-    return ('<h1>ACR Rally Club · dołącz do klubu</h1><section class="card">'
-        '<h2>Nowe konto</h2><p>Nick jest jeden na wszystkie rajdy. Zachowaj kod odzyskiwania.</p>'
-        '<form action="/web/club/register" method="post">'+field+
-        '<label>Twój nick <input name="nickname" required minlength="2" maxlength="24" autocomplete="nickname"></label> '
-        '<button class="run">ZAREJESTRUJ SIĘ</button></form></section><section class="card">'
-        '<h2>Przywróć konto</h2><form action="/web/club/recover" method="post">'+field+
-        '<label>Nick <input name="nickname" required></label> '
-        '<label>Kod odzyskiwania <input name="recovery" required autocomplete="off"></label> '
-        '<button class="run">ZALOGUJ PONOWNIE</button></form></section>')
+        return (tr('<h1>ACR Rally Club · profile</h1><section class="card"><h2>Welcome, ')+escape(member['nickname'])+
+                tr('</h2><p>This browser remembers your nickname. Enter rallies using the same account.</p><p><a href="/">Choose a rally</a> · <a href="/seasons">Seasons</a></p></section>'))
+    return (tr('<h1>ACR Rally Club · join the club</h1><section class="card"><h2>New account</h2><p>Use one nickname across all rallies. Keep your recovery code safe.</p><form action="/web/club/register" method="post">')+field+
+        tr('<label>Your nickname <input name="nickname" required minlength="2" maxlength="24" autocomplete="nickname"></label> <button class="run">CREATE ACCOUNT</button></form></section><section class="card"><h2>Recover account</h2><form action="/web/club/recover" method="post">')+field+
+        tr('<label>Nick <input name="nickname" required></label> <label>Recovery code <input name="recovery" required autocomplete="off"></label> <button class="run">SIGN IN AGAIN</button></form></section>'))

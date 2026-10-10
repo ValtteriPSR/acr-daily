@@ -4,6 +4,9 @@ Run from merged acr-daily root: py -3.13 server_local/server.py --import-event e
 then: py -3.13 server_local/server.py
 """
 from __future__ import annotations
+from i18n import tr
+from i18n import (request_localized, localize_document, language, language_cookie,
+                  safe_return_path, SUPPORTED_LANGUAGES)
 import argparse
 import sys
 # When launched with python server_local/server.py, ensure helper modules importing
@@ -101,10 +104,10 @@ class Fault(Exception):
 
 def nick_key(nick):
     if not isinstance(nick, str) or not 2 <= len(nick.strip()) <= 24:
-        raise Fault(400, 'Nick: od 2 do 24 znaków')
+        raise Fault(400, tr('Nickname: 2–24 characters'))
     nick = nick.strip()
     if not re.fullmatch(r'[\w\- ]+', nick, re.UNICODE):
-        raise Fault(400, 'Nick może zawierać litery, cyfry, spacje, _ i -')
+        raise Fault(400, tr('Nicknames may contain letters, digits, spaces, _ and -'))
     return nick, nick.casefold()
 
 
@@ -122,7 +125,7 @@ class Store:
         self.inactive = inactive
         self.lock = threading.RLock()
         self.db = connect_database(self.path)
-        self.db.executescript('''
+        self.db.executescript(r"""
         CREATE TABLE IF NOT EXISTS events (
           id TEXT PRIMARY KEY, config TEXT NOT NULL, opens REAL NOT NULL, closes REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS players (
@@ -142,7 +145,7 @@ class Store:
           raw_ms INTEGER NOT NULL, penalty_ms INTEGER NOT NULL, total_ms INTEGER NOT NULL,
           acr_started REAL NOT NULL, finished REAL NOT NULL,
           PRIMARY KEY(player_id,stage_index));
-        ''')
+        """)
         install_tables(self)
         install_seasons(self)
         self.db.execute('''CREATE TABLE IF NOT EXISTS admin_audit (
@@ -155,7 +158,7 @@ class Store:
     def event(self, ident):
         row = self.db.execute('SELECT * FROM events WHERE id=?', (ident,)).fetchone()
         if not row:
-            raise Fault(404, 'Nie znaleziono rajdu')
+            raise Fault(404, tr('Rally not found'))
         return dict(row), json.loads(row['config'])
 
     def import_event(self, config):
@@ -163,7 +166,7 @@ class Store:
         with self.lock:
             existing = self.db.execute('SELECT id FROM events WHERE id=?', (config['id'],)).fetchone()
             if existing:
-                raise Fault(409, 'Rajd już istnieje (nie nadpisujemy po rozpoczęciu prób)')
+                raise Fault(409, tr('The rally already exists (it is not overwritten after attempts begin)'))
             self.db.execute('INSERT INTO events(id,config,opens,closes) VALUES(?,?,?,?)',
                             (config['id'], json.dumps(config, ensure_ascii=False),
                              utc_epoch(config['opensAt']), utc_epoch(config['closesAt'])))
@@ -179,7 +182,7 @@ class Store:
                     if not self.db.execute('SELECT 1 FROM events WHERE id=?', (ident,)).fetchone():
                         break
                 else:
-                    raise Fault(503, 'Nie można wygenerować unikalnego ID rajdu')
+                    raise Fault(503, tr('Cannot generate a unique rally ID'))
                 config['id'] = ident
                 validate_event(config)
                 self.db.execute('INSERT INTO events(id,config,opens,closes) VALUES(?,?,?,?)',
@@ -201,14 +204,14 @@ class Store:
     def update_event(self, ident, config):
         validate_event(config)
         if config['id'] != ident:
-            raise Fault(400, 'Nie można zmienić ID rajdu')
+            raise Fault(400, tr('The rally ID cannot be changed'))
         with self.lock:
             self._begin()
             try:
                 self.event(ident)
                 used = self.db.execute('SELECT COUNT(*) FROM players WHERE event_id=?', (ident,)).fetchone()[0]
                 if used:
-                    raise Fault(409, 'Rajd ma już uczestników; zmiana konfiguracji jest zablokowana')
+                    raise Fault(409, tr('The rally has participants; configuration changes are locked'))
                 self.db.execute('UPDATE events SET config=?,opens=?,closes=? WHERE id=?',
                                 (json.dumps(config, ensure_ascii=False),
                                  utc_epoch(config['opensAt']), utc_epoch(config['closesAt']), ident))
@@ -225,7 +228,7 @@ class Store:
                 self.event(ident)
                 used = self.db.execute('SELECT COUNT(*) FROM players WHERE event_id=?', (ident,)).fetchone()[0]
                 if used:
-                    raise Fault(409, 'Nie można usunąć rajdu z uczestnikami')
+                    raise Fault(409, tr('Cannot delete a rally with participants'))
                 self.db.execute('DELETE FROM events WHERE id=?', (ident,))
                 self.db.execute('COMMIT')
                 return {'ok': True, 'id': ident}
@@ -246,19 +249,17 @@ class Store:
 
     def _sweep(self):
         now = time.time()
-        self.db.execute("""UPDATE players SET status='dnf',terminal_reason='Brak pełnego oficjalnego zapisu po mecie', started=NULL
+        self.db.execute("""UPDATE players SET status='dnf',terminal_reason='Missing complete official results after finish', started=NULL
             WHERE status='awaiting_results' AND last_seen < ?""", (now - 600,))
-        self.db.execute('''UPDATE players SET status='dnf',
-             terminal_reason='Po rozpoczęciu OS utracono kontakt z klientem',
-             started=NULL WHERE status='active' AND last_seen < ?''', (now - self.inactive,))
+        self.db.execute("UPDATE players SET status='dnf',\n             terminal_reason='Client connection lost after stage start',\n             started=NULL WHERE status='active' AND last_seen < ?", (now - self.inactive,))
 
     def _auth(self, token):
         if not isinstance(token, str) or len(token) < 40:
-            raise Fault(401, 'Brak tokenu uczestnika')
+            raise Fault(401, tr('Missing participant token'))
         row = self.db.execute('SELECT * FROM players WHERE token_hash=?',
                               (sha256(token.encode()).hexdigest(),)).fetchone()
         if not row:
-            raise Fault(401, 'Nieprawidłowy token')
+            raise Fault(401, tr('Invalid token'))
         return row
 
     def join(self, event_id, nick):
@@ -268,15 +269,15 @@ class Store:
             try:
                 row, event = self.event(event_id)
                 if self.db.execute('SELECT 1 FROM season_events WHERE event_id=?',(event_id,)).fetchone():
-                    raise Fault(403, 'Rajd sezonowy wymaga konta klubowego. Zarejestruj nick na /club')
+                    raise Fault(403, tr('A season rally requires a club account. Register a nickname at /club'))
                 now = time.time()
                 # Club registration is permitted in advance; RUN remains time-gated.
                 if now >= row['closes']:
-                    raise Fault(409, 'Zapisy zamknięte: rajd już się zakończył')
+                    raise Fault(409, tr('Registration is closed: the rally has ended'))
                 used = self.db.execute('SELECT 1 FROM players WHERE event_id=? AND nickname_key=?',
                                        (event_id, key)).fetchone()
                 if used:
-                    raise Fault(409, 'Nick już zarejestrowany; na tym komputerze użyj istniejącego tokenu')
+                    raise Fault(409, tr('Nickname already registered; use the existing token on this computer'))
                 token = secrets.token_urlsafe(32)
                 cur = self.db.execute('''INSERT INTO players
                     (event_id,nickname,nickname_key,token_hash,created,last_seen)
@@ -303,7 +304,7 @@ class Store:
         """Server-side fail-closed protocol validation (client is NOT a trusted attestor)."""
         problems = compare_settings(event, settings)
         if problems:
-            reason = 'Zmienione ustawienia Rally Weekend: ' + '; '.join(problems[:3])
+            reason = tr('Rally Weekend settings changed: ') + '; '.join(problems[:3])
             self.db.execute("UPDATE players SET status='dnf',terminal_reason=?,started=NULL WHERE id=?",
                             (reason[:300], player['id']))
             return reason
@@ -316,8 +317,8 @@ class Store:
             try:
                 p = self._auth(token)
                 if p['status'] in ('completed','dnf'):
-                    raise Fault(409, 'Rajd jest już zakończony')
-                msg = ('Niezgodność ustawień Rally Weekend: ' + str(reason))[:300]
+                    raise Fault(409, tr('The rally has already ended'))
+                msg = (tr('Rally Weekend settings mismatch: ') + str(reason))[:300]
                 self.db.execute("UPDATE players SET status='dnf',terminal_reason=?,started=NULL WHERE id=?",
                                 (msg,p['id']))
                 self.db.execute('COMMIT')
@@ -334,20 +335,20 @@ class Store:
                 p = self._auth(token)
                 row, config = self.event(event_id)
                 if p['event_id'] != event_id:
-                    raise Fault(403, 'Inny rajd niż zarejestrowany')
+                    raise Fault(403, tr('Rally differs from the registered event'))
                 if p['club_member_id'] is not None:
                     ensure_division_assigned(self,event_id,p['club_member_id'])
                 now = time.time()
                 if not row['opens'] <= now <= row['closes']:
-                    raise Fault(409, 'Rajd nie jest teraz aktywny')
+                    raise Fault(409, tr('The rally is not currently active'))
                 if p['status'] not in ('registered', 'ready') or p['stage_index'] != stage_index:
-                    raise Fault(409, 'Próba już wykorzystana lub etap zablokowany')
+                    raise Fault(409, tr('Attempt already used or stage locked'))
                 if stage_index < 0 or stage_index >= len(config['stages']):
-                    raise Fault(400, 'Nieprawidłowy numer OS')
+                    raise Fault(400, tr('Invalid stage number'))
                 if car_id not in config['allowedCars']:
-                    raise Fault(409, 'Auto spoza klasy rajdu')
+                    raise Fault(409, tr('Car is outside the rally class'))
                 if p['car_id'] is not None and p['car_id'] != car_id:
-                    raise Fault(409, 'Zmiana samochodu w trakcie rajdu zabroniona')
+                    raise Fault(409, tr('Changing cars during the rally is not allowed'))
                 reason = self._integrity_or_dnf(p, config, settings)
                 if reason:
                     self.db.execute('COMMIT')
@@ -366,7 +367,7 @@ class Store:
             self._sweep()
             p = self._auth(token)
             if p['event_id'] != event_id or p['stage_index'] != stage_index or p['status'] != 'active':
-                raise Fault(409, 'Brak aktywnej próby')
+                raise Fault(409, tr('No active attempt'))
             _row, config = self.event(event_id)
             reason = self._integrity_or_dnf(p, config, settings)
             if reason:
@@ -381,7 +382,7 @@ class Store:
                 self._sweep()
                 p = self._auth(token)
                 if p['status'] != 'active':
-                    raise Fault(409, 'Brak aktywnej próby')
+                    raise Fault(409, tr('No active attempt'))
                 self.db.execute("UPDATE players SET status='dnf',terminal_reason=?,started=NULL WHERE id=?",
                                 (str(reason)[:300], p['id']))
                 self.db.execute('COMMIT')
@@ -399,13 +400,13 @@ class Store:
                 p = self._auth(token)
                 row, config = self.event(event_id)
                 if p['event_id'] != event_id or p['status'] != 'active' or p['stage_index'] != index:
-                    raise Fault(409, 'Etap nie jest aktywny / próba już wykorzystana')
+                    raise Fault(409, tr('Stage is not active / attempt already used'))
                 reason = self._integrity_or_dnf(p, config, settings)
                 if reason:
                     self.db.execute('COMMIT')
                     raise Fault(409, reason)
                 if type(clock_ms) is not int or not 10000 <= clock_ms <= 4*60*60*1000:
-                    raise Fault(400, 'Nieprawidłowy timer OS-u')
+                    raise Fault(400, tr('Invalid stage timer'))
                 now = time.time()
                 self.db.execute('''INSERT INTO provisional(player_id,stage_index,clock_ms,finished)
                   VALUES(?,?,?,?)''', (p['id'], index, clock_ms, now))
@@ -430,36 +431,36 @@ class Store:
                 row, event = self.event(p['event_id'])
                 stages = provided.get('stages')
                 if p['status'] != 'awaiting_results' or p['stage_index'] != len(event['stages']):
-                    raise Fault(409, 'Rajd nie jest gotowy do zatwierdzenia')
+                    raise Fault(409, tr('The rally is not ready for confirmation'))
                 reason = self._integrity_or_dnf(p, event, provided.get('settings'))
                 if reason:
                     self.db.execute('COMMIT')
                     raise Fault(409, reason)
                 if not isinstance(stages, list) or len(stages) != len(event['stages']):
-                    raise Fault(400, 'Brak oficjalnego wyniku któregoś OS-u')
+                    raise Fault(400, tr('An official stage result is missing'))
                 prov = self.db.execute('SELECT * FROM provisional WHERE player_id=? ORDER BY stage_index',
                                        (p['id'],)).fetchall()
                 if len(prov) != len(stages):
-                    raise Fault(409, 'Nie wszystkie OS-y miały legalną próbę')
+                    raise Fault(409, tr('Not all stages had a valid attempt'))
                 prev_started = 0
                 now = time.time()
                 for idx, (record, stage, started) in enumerate(zip(stages, event['stages'], prov)):
                     if not isinstance(record, dict) or record.get('stageIndex') != idx or \
                             record.get('stageId') != stage['stageId'] or record.get('carId') != p['car_id']:
-                        raise Fault(409, 'Zły OS lub samochód w oficjalnym wyniku')
+                        raise Fault(409, tr('Wrong stage or car in the official result'))
                     raw, pen, total = (record.get(k) for k in ('rawMs','penaltyMs','totalMs'))
                     if any(type(x) is not int for x in (raw,pen,total)) or not 10000 <= raw <= 14400000 or \
                             not 0 <= pen <= 3600000 or raw + pen != total:
-                        raise Fault(400, 'Nieprawidłowy czas lub kara')
+                        raise Fault(400, tr('Invalid time or penalty'))
                     acr_started = record.get('acrStarted')
                     if not isinstance(acr_started, (float,int)) or \
                             not p['created'] - 60 <= acr_started <= now + 60 or \
                             acr_started <= prev_started:
-                        raise Fault(409, 'Nieprawidłowy czas rozpoczęcia próby w pliku ACR')
+                        raise Fault(409, tr('Invalid attempt start time in the ACR file'))
                     # Coarse sanity bound between telemetry and official timers; exceptions
                     # can occur with timing glitches and need manual review rather than fake score.
                     if abs(raw - started['clock_ms']) > 5000:
-                        raise Fault(409, 'Oficjalny timer różni się o >5s od zapisu telemetrii')
+                        raise Fault(409, tr('Official timer differs from telemetry by more than 5 seconds'))
                     self.db.execute('''INSERT INTO results(player_id,stage_index,stage_id,car_id,
                       raw_ms,penalty_ms,total_ms,acr_started,finished)
                       VALUES(?,?,?,?,?,?,?,?,?)''',
@@ -490,7 +491,7 @@ class Store:
                     'stageResults':stage_results}
 
 
-STYLE = '''
+STYLE = r"""
 *{box-sizing:border-box}body{font-family:system-ui,-apple-system,Segoe UI,sans-serif;
 background:#0d131a;color:#f4f7fb;margin:0;line-height:1.55}
 main{max-width:1120px;margin:50px auto;padding:0 24px}
@@ -502,7 +503,7 @@ th{font-size:.82rem;text-transform:uppercase;letter-spacing:.06em;color:#9eb1c4}
 .good{color:#5adeb0}.bad{color:#ff828a}.muted{color:#9eb1c4}.mono{font-variant-numeric:tabular-nums}
 footer{padding:30px 0;color:#8195a7;font-size:.85rem}
 button.run{padding:13px 23px;border:0;border-radius:10px;background:#13b887;color:#071a16;font-weight:800;cursor:pointer;font-size:1rem}button.run:hover{background:#3ee2b3}
-'''
+"""
 
 
 def site(store, identifier=None, browser=None, csrf=None, member=None):
@@ -523,68 +524,48 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
         evs=store.listing()
         upcoming=sum(utc_epoch(ev['opensAt'])>now for ev in evs)
         active=sum(utc_epoch(ev['opensAt'])<=now<=utc_epoch(ev['closesAt']) for ev in evs)
-        content=('<section class="hero"><span class="eyebrow">Assetto Corsa Rally · Oficjalna rywalizacja</span>'
-                 '<h1>Rajdy i wydarzenia</h1><p>Wybierz rajd, poznaj regulamin i wystartuj jednym kliknięciem. '
-                 'Odcinki, klasyfikacje i wyniki klubowe w jednym miejscu.</p>'
-                 '<p><a class="btn-link" href="/download">⬇ POBIERZ LAUNCHER WINDOWS (.EXE)</a>　<a class="btn-link" href="/guide">Poradnik startu →</a></p>'
-                 '<div class="stats"><div class="stat"><strong>'+str(len(evs))+'</strong><span>Rajdów</span></div>'
-                 '<div class="stat"><strong>'+str(active)+'</strong><span>Trwające</span></div>'
-                 '<div class="stat"><strong>'+str(upcoming)+'</strong><span>Zaplanowane</span></div></div></section>')
+        content=(tr('<section class="hero"><span class="eyebrow">Assetto Corsa Rally · Club competition</span><h1>Rallies and events</h1><p>Choose a rally, read the rules and start with one click. Stages, standings and club results in one place.</p><p><a class="btn-link" href="/download">⬇ DOWNLOAD WINDOWS LAUNCHER (.EXE)</a>\u3000<a class="btn-link" href="/guide">Getting started →</a></p><div class="stats"><div class="stat"><strong>')+str(len(evs))+tr('</strong><span>Rallies</span></div><div class="stat"><strong>')+str(active)+tr('</strong><span>Live</span></div><div class="stat"><strong>')+str(upcoming)+tr('</strong><span>Scheduled</span></div></div></section>'))
         if member:
-            content+=('<section class="card"><span class="section-kicker">Twój profil</span>Witaj, <strong>'+escape(member['nickname'])+
-                      '</strong>. <a href="/club">Zobacz konto klubowe →</a></section>')
-        content+=('<div class="card-head"><div><span class="section-kicker">Kalendarz</span><h2>Dostępne rajdy</h2></div>'
-                  '<a class="btn-link" href="/seasons">Wyniki sezonów →</a></div>')
+            content+=(tr('<section class="card"><span class="section-kicker">Your profile</span>Welcome, <strong>')+escape(member['nickname'])+
+                      tr('</strong>. <a href="/club">View club account →</a></section>'))
+        content+=(tr('<div class="card-head"><div><span class="section-kicker">Calendar</span><h2>Available rallies</h2></div><a class="btn-link" href="/seasons">Season standings →</a></div>'))
         content+='<div class="grid-cards">'
         for ev in evs:
             eid=escape(ev['id'],quote=True)
             opening,closing=utc_epoch(ev['opensAt']),utc_epoch(ev['closesAt'])
-            label,cl=('TRWA','chip-active') if opening<=now<=closing else (('JUŻ WKRÓTCE','chip-upcoming') if now<opening else ('ZAKOŃCZONY','chip-ended'))
+            label,cl=(tr('LIVE'),'chip-active') if opening<=now<=closing else ((tr('COMING SOON'),'chip-upcoming') if now<opening else (tr('FINISHED'),'chip-ended'))
             content+=('<article class="rally-card"><div class="hero-inline">'+pill(label,cl)+
                       '<span class="muted">'+escape(ev['location'])+'</span></div>'
                       '<h2><a href="/rally/'+eid+'">'+escape(ev['name'])+'</a></h2>'
-                      '<p>'+str(len(ev['stages']))+' odcinki specjalne · '+escape(ev['carClass'])+'</p>'
+                      '<p>'+str(len(ev['stages']))+tr(' special stages · ')+escape(ev['carClass'])+'</p>'
                       '<div class="rally-foot"><small>'+escape(date_label(ev['opensAt']))+'</small>'
-                      '<a class="btn-link" href="/rally/'+eid+'">Zobacz rajd →</a></div></article>')
+                      '<a class="btn-link" href="/rally/'+eid+tr('">View rally →</a></div></article>'))
         content+='</div>'
-        if not evs:content+='<div class="empty">Brak rajdów. Organizator doda je w panelu administratora.</div>'
-        return shell('ACR Rally Club — Rajdy',content,active='rallies')
+        if not evs:content+=tr('<div class="empty">No rallies yet. The organizer will add them in the administrator panel.</div>')
+        return shell(tr('ACR Rally Club — Rallies'),content,active='rallies')
 
     data=store.board(identifier)
     ev=data['event'];eid=escape(ev['id'],quote=True)
     total_stages=len(ev['stages'])
     finished=sum(p['status']=='completed' for p in data['players'])
-    content=('<div><a class="backlink" href="/">← Wszystkie rajdy</a></div>'
-             '<section class="hero"><span class="eyebrow">Rally Weekend / '+escape(ev['location'])+'</span>'
-             '<h1>'+escape(ev['name'])+'</h1><p>'+escape(ev['carClass'])+' · '+str(total_stages)+' odcinków specjalnych</p>'
-             '<div class="stats"><div class="stat"><strong>'+str(total_stages)+'</strong><span>OS-ów</span></div>'
-             '<div class="stat"><strong>'+str(len(data['players']))+'</strong><span>Uczestników</span></div>'
-             '<div class="stat"><strong>'+str(finished)+'</strong><span>Na mecie</span></div></div></section>'
-             '<div class="split"><section class="card"><span class="section-kicker">Informacje o rundzie</span>'
-             '<h2>Harmonogram</h2><p class="rally-meta"><strong>Start:</strong> '+escape(date_label(ev['opensAt']))+'</p>'
-             '<p class="rally-meta"><strong>Koniec:</strong> '+escape(date_label(ev['closesAt']))+'</p>'
-             '<p class="rally-meta"><strong>Lokalizacja:</strong> '+escape(ev['location'])+'</p>'
-             '<p class="rally-meta"><strong>Klasa aut:</strong> '+escape(ev['carClass'])+'</p></section>')
-    content+='<section class="card"><span class="section-kicker">Strefa kierowcy</span><h2>Twój udział</h2>'
+    content=(tr('<div><a class="backlink" href="/">← All rallies</a></div><section class="hero"><span class="eyebrow">Rally Weekend / ')+escape(ev['location'])+'</span>'
+             '<h1>'+escape(ev['name'])+'</h1><p>'+escape(ev['carClass'])+' · '+str(total_stages)+tr(' special stages</p><div class="stats"><div class="stat"><strong>')+str(total_stages)+tr('</strong><span>stages</span></div><div class="stat"><strong>')+str(len(data['players']))+tr('</strong><span>Participants</span></div><div class="stat"><strong>')+str(finished)+tr('</strong><span>Finished</span></div></div></section><div class="split"><section class="card"><span class="section-kicker">Round information</span><h2>Schedule</h2><p class="rally-meta"><strong>Opens:</strong> ')+escape(date_label(ev['opensAt']))+tr('</p><p class="rally-meta"><strong>Closes:</strong> ')+escape(date_label(ev['closesAt']))+tr('</p><p class="rally-meta"><strong>Location:</strong> ')+escape(ev['location'])+tr('</p><p class="rally-meta"><strong>Car class:</strong> ')+escape(ev['carClass'])+'</p></section>')
+    content+=tr('<section class="card"><span class="section-kicker">Driver area</span><h2>Your entry</h2>')
     if csrf:
         csrf_field='<input type="hidden" name="csrf" value="'+escape(csrf,quote=True)+'">'
         if browser is None and member is not None:
-            content+='<p>Startujesz pod nickiem <strong>'+escape(member['nickname'])+'</strong>.</p>'
+            content+=tr('<p>Your racing nickname is <strong>')+escape(member['nickname'])+'</strong>.</p>'
             content+=('<form action="/web/enroll" method="post">'+csrf_field+
-                      '<input type="hidden" name="eventId" value="'+eid+'">'
-                      '<button class="run" type="submit">ZAPISZ SIĘ</button></form>')
+                      '<input type="hidden" name="eventId" value="'+eid+tr('"><button class="run" type="submit">REGISTER FOR RALLY</button></form>'))
         elif browser is None:
             seasonal=store.db.execute('SELECT 1 FROM season_events WHERE event_id=?',(ev['id'],)).fetchone()
-            content+='<p>Masz konto? <a href="/club">Dołącz do klubu</a>, aby zachować nick na wszystkie rajdy.</p>'
+            content+=tr('<p>Have an account? <a href="/club">Join the club</a> to keep the same nickname across all rallies.</p>')
             if not seasonal and not PUBLIC_URL:
                 content+=('<form action="/web/enroll" method="post">'+csrf_field+
-                    '<input type="hidden" name="eventId" value="'+eid+'">'
-                    '<label for="nickname">Nick kierowcy</label><div class="toolbar">'
-                    '<input id="nickname" name="nickname" required minlength="2" maxlength="24" autocomplete="nickname" placeholder="Twój nick">'
-                    '<button class="run" type="submit">ZAPISZ SIĘ</button></div></form>')
+                    '<input type="hidden" name="eventId" value="'+eid+tr('"><label for="nickname">Driver nickname</label><div class="toolbar"><input id="nickname" name="nickname" required minlength="2" maxlength="24" autocomplete="nickname" placeholder="Your nickname"><button class="run" type="submit">REGISTER FOR RALLY</button></div></form>'))
         else:
             status=browser['status']
-            labels={'registered':'ZAPISANY','ready':'MIĘDZY OS','active':'NA ODCINKU','completed':'META','dnf':'DNF','awaiting_results':'WERYFIKACJA'}
+            labels={'registered':tr('REGISTERED'),'ready':tr('BETWEEN STAGES'),'active':tr('ON STAGE'),'completed':tr('FINISH'),'dnf':'DNF','awaiting_results':tr('VERIFICATION')}
             content+='<p><strong>'+escape(browser['nickname'])+'</strong> · '+pill(labels.get(status,status),'status-done' if status=='completed' else 'status-dnf' if status=='dnf' else '')+'</p>'
             waiting_division=False
             if member is not None:
@@ -593,23 +574,19 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
             rally_open=utc_epoch(ev['opensAt']) <= time.time() < utc_epoch(ev['closesAt'])
             if status in ('registered','ready') and not waiting_division and rally_open:
                 content+=('<form action="/web/run" method="post">'+csrf_field+
-                    '<input type="hidden" name="eventId" value="'+eid+'">'
-                    '<button class="run" type="submit">▶ RUN RALLY</button></form>'
-                    '<p><small>Nie masz launchera? <a href="/launcher">Instrukcja instalacji</a>.</small></p>')
+                    '<input type="hidden" name="eventId" value="'+eid+tr('"><button class="run" type="submit">▶ RUN RALLY</button></form><p><small>Need the launcher? <a href="/launcher">Installation guide</a>.</small></p>'))
             elif waiting_division:
-                content+='<p class="muted">Oczekujesz na przydział do dywizji przez organizatora.</p>'
+                content+=tr('<p class="muted">Waiting for the organizer to assign your division.</p>')
             elif status in ('registered','ready') and time.time() < utc_epoch(ev['opensAt']):
-                content+='<p class="muted">Zapis potwierdzony. RUN RALLY będzie dostępny od '+escape(date_label(ev['opensAt']))+'.</p>'
+                content+=tr('<p class="muted">Entry confirmed. RUN RALLY will be available from ')+escape(date_label(ev['opensAt']))+'.</p>'
             else:
-                content+='<p class="muted">RUN zablokowany — próba już trwa lub została zakończona.</p>'
+                content+=tr('<p class="muted">RUN is locked — the attempt is in progress or has ended.</p>')
     content+='</section></div>'
-    content+='<section class="card"><div class="card-head"><div><span class="section-kicker">Klasyfikacja rajdu</span><h2>Wyniki generalne</h2></div>'+pill(str(len(data['players']))+' kierowców')+'</div>'
-    content+=('<div class="toolbar"><label for="driver-search">Szukaj kierowcy</label>'
-              '<input type="search" id="driver-search" placeholder="Wpisz nick kierowcy…" autocomplete="off"></div>')
-    content+=('<div class="table-scroll"><table><thead><tr><th>Miejsce</th><th>Kierowca</th>'
-              '<th>Samochód</th><th>OS</th><th>Łączny czas</th><th>Status</th></tr></thead><tbody>')
+    content+=tr('<section class="card"><div class="card-head"><div><span class="section-kicker">Rally standings</span><h2>Overall results</h2></div>')+pill(str(len(data['players']))+tr(' drivers'))+'</div>'
+    content+=(tr('<div class="toolbar"><label for="driver-search">Search drivers</label><input type="search" id="driver-search" placeholder="Enter a driver nickname…" autocomplete="off"></div>'))
+    content+=(tr('<div class="table-scroll"><table><thead><tr><th>Position</th><th>Driver</th><th>Car</th><th>SS</th><th>Total time</th><th>Status</th></tr></thead><tbody>'))
     for i,p in enumerate(data['players'],1):
-        label={'completed':'META','dnf':'DNF','ready':'MIĘDZY OS','active':'NA ODCINKU','registered':'ZAPISANY','awaiting_results':'WERYFIKACJA'}.get(p['status'],p['status'])
+        label={'completed':tr('FINISH'),'dnf':'DNF','ready':tr('BETWEEN STAGES'),'active':tr('ON STAGE'),'registered':tr('REGISTERED'),'awaiting_results':tr('VERIFICATION')}.get(p['status'],p['status'])
         status_css='status-done' if p['status']=='completed' else 'status-dnf' if p['status']=='dnf' else ''
         status_text=label+((' · '+str(p['terminal_reason'])[:100]) if p['status']=='dnf' and p.get('terminal_reason') else '')
         result=format_ms(p['total']) if p['completed_stages'] else '—'
@@ -617,20 +594,20 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
                   '<td>'+escape(p['car_id'] or '—')+'</td><td>'+str(p['completed_stages'])+'/'+str(total_stages)+'</td>'
                   '<td class="mono"><strong>'+escape(result)+'</strong></td><td>'+pill(status_text,status_css)+'</td></tr>')
     content+='</tbody></table></div>'
-    if not data['players']:content+='<div class="empty">Nie ma jeszcze zgłoszonych kierowców.</div>'
-    content+='<p class="table-meta">Do klasyfikacji końcowej liczą się tylko kierowcy ze statusem META. DNF blokuje ponowną próbę.</p></section>'
-    content+='<section class="card"><span class="section-kicker">Szczegółowe wyniki</span><h2>Wyniki poszczególnych OS-ów</h2>'
+    if not data['players']:content+=tr('<div class="empty">No drivers have registered yet.</div>')
+    content+=tr('<p class="table-meta">Only drivers with FINISH status count toward the final standings. DNF prevents another attempt.</p></section>')
+    content+=tr('<section class="card"><span class="section-kicker">Detailed results</span><h2>Individual stage results</h2>')
     for index,stage in enumerate(ev['stages']):
         stage_rows=[r for r in data['stageResults'] if r['stage_index']==index]
-        content+='<details class="round"'+(' open' if index==0 else '')+'><summary><span>OS '+str(index+1)+' · '+escape(stage['stageId'])+'</span>'+pill(str(len(stage_rows))+' wyników')+'</summary>'
-        content+='<div class="table-scroll"><table><thead><tr><th>#</th><th>Kierowca</th><th>RAW</th><th>Kary</th><th>Oficjalny czas</th></tr></thead><tbody>'
+        content+='<details class="round"'+(' open' if index==0 else '')+tr('><summary><span>SS ')+str(index+1)+' · '+escape(stage['stageId'])+'</span>'+pill(str(len(stage_rows))+tr(' results'))+'</summary>'
+        content+=tr('<div class="table-scroll"><table><thead><tr><th>#</th><th>Driver</th><th>RAW</th><th>Penalties</th><th>Official time</th></tr></thead><tbody>')
         for place,r in enumerate(stage_rows,1):
             content+=('<tr><td class="rank-col">'+str(place)+'</td><td>'+escape(r['nickname'])+'</td>'
                     '<td class="mono">'+format_ms(r['raw_ms'])+'</td>'
                     '<td class="mono bad">+'+format_ms(r['penalty_ms'])+'</td>'
                     '<td class="mono"><strong>'+format_ms(r['total_ms'])+'</strong></td></tr>')
         content+='</tbody></table></div>'
-        if not stage_rows:content+='<div class="empty">Wyniki pojawią się po weryfikacji całego rajdu.</div>'
+        if not stage_rows:content+=tr('<div class="empty">Results will appear after the complete rally has been verified.</div>')
         content+='</details>'
     content+='</section>'
     from site_theme import RALLY_FILTER_JS
@@ -720,11 +697,14 @@ def make_handler(store, admin=None, catalog_root=None):
     class Handler(BaseHTTPRequestHandler):
         server_version = 'ACRClubLocal/0.1'
         def _write(self, code, value, mime='application/json; charset=utf-8', extra_headers=None):
+            if mime.startswith('text/html') and isinstance(value, str):
+                value = localize_document(value)
             payload = value.encode('utf-8') if isinstance(value, str) else json.dumps(value, ensure_ascii=False).encode()
             self.send_response(code)
             self.send_header('Content-Type', mime)
             self.send_header('Content-Length', str(len(payload)))
             self.send_header('Cache-Control', 'no-store')
+            self.send_header('Content-Language', language())
             self.send_header('X-Content-Type-Options', 'nosniff')
             self.send_header('X-Frame-Options', 'DENY')
             self.send_header('Referrer-Policy', 'no-referrer')
@@ -739,18 +719,18 @@ def make_handler(store, admin=None, catalog_root=None):
 
         def _gateway_guard(self):
             if not gateway_ok(self.headers) or not check_host(self.headers):
-                raise Fault(403, 'Nieprawidłowa brama HTTPS lub adres serwera')
+                raise Fault(403, tr('Invalid HTTPS gateway or server address'))
 
         def _remote_ip(self):
             return remote_addr(self.headers,self.client_address[0])
 
         def _client_version(self):
             if not version_allowed(self.headers.get('X-ACR-Launcher-Version')):
-                raise Fault(426, 'Za stary launcher: wymagana wersja V6.3.1 lub nowsza. Zainstaluj najnowszy EXE ze strony /download. Sama aktualizacja ZIP serwera nie wymienia zainstalowanego launchera.')
+                raise Fault(426, tr('Outdated launcher: V6.3.1 or later is required. Install the latest EXE from /download. Updating the server ZIP does not replace the installed launcher.'))
 
         def _limit(self, name, count):
             if not limiter.allow(self._remote_ip(),name,count):
-                raise Fault(429, 'Zbyt wiele żądań. Spróbuj później.')
+                raise Fault(429, tr('Too many requests. Try again later.'))
 
         def _secure_cookie(self):
             return bool(PUBLIC_URL) or self.headers.get('X-Forwarded-Proto')=='https'
@@ -766,32 +746,32 @@ def make_handler(store, admin=None, catalog_root=None):
         def _form(self):
             ctype = self.headers.get('Content-Type','').split(';',1)[0].lower()
             if ctype != 'application/x-www-form-urlencoded':
-                raise Fault(415, 'Wymagany formularz HTML')
+                raise Fault(415, tr('An HTML form is required'))
             try:
                 length = int(self.headers.get('Content-Length','0'))
             except ValueError:
-                raise Fault(400, 'Błędny Content-Length')
+                raise Fault(400, tr('Invalid Content-Length'))
             if not 0 < length <= 4096:
-                raise Fault(413, 'Nieprawidłowa długość formularza')
+                raise Fault(413, tr('Invalid form length'))
             try:
                 data = parse_qs(self.rfile.read(length).decode('utf-8'), strict_parsing=True)
                 return {k:v[0] for k,v in data.items()}
             except (ValueError, UnicodeError):
-                raise Fault(400, 'Nieprawidłowe dane formularza')
+                raise Fault(400, tr('Invalid form data'))
 
         def _require_web_form(self, data):
             cookies = self._cookies()
             if not csrf_ok(cookies.get('acrclub_csrf'), data.get('csrf')):
-                raise Fault(403, 'Brak lub zły token formularza (CSRF)')
+                raise Fault(403, tr('Missing or invalid form token (CSRF)'))
             origin = self.headers.get('Origin')
             fetch_site = self.headers.get('Sec-Fetch-Site')
             # Sec-Fetch-Site can identify genuine cross-site requests even when
             # Origin is omitted or set to the opaque literal "null".
             if fetch_site == 'cross-site':
                 print('Rejected cross-site web form:', repr(origin), flush=True)
-                raise Fault(403, 'Niedozwolone pochodzenie żądania')
+                raise Fault(403, tr('Request origin is not allowed'))
             if PUBLIC_URL and not browser_origin(origin, self.headers):
-                raise Fault(403, 'Formularz z innej domeny jest niedozwolony')
+                raise Fault(403, tr('Forms from another domain are not allowed'))
             if origin and not PUBLIC_URL:
                 host = self.headers.get('Host', '')
                 allowed = allowed_browser_origin(origin, host, self.server.server_port)
@@ -803,7 +783,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     print('Rejected browser Origin:', repr(origin[:180]),
                           'Host:', repr(host[:180]),
                           'Sec-Fetch-Site:', repr(fetch_site), flush=True)
-                    raise Fault(403, 'Niedozwolone pochodzenie żądania')
+                    raise Fault(403, tr('Request origin is not allowed'))
             return cookies
 
         def _redirect(self, location, *, cookie=None):
@@ -815,21 +795,21 @@ def make_handler(store, admin=None, catalog_root=None):
             try:
                 length = int(self.headers.get('Content-Length','0'))
             except ValueError:
-                raise Fault(400, 'Błędny Content-Length')
+                raise Fault(400, tr('Invalid Content-Length'))
             if not 0 < length <= MAX_BODY:
-                raise Fault(413, 'Za duże dane')
+                raise Fault(413, tr('Payload too large'))
             try:
                 body = json.loads(self.rfile.read(length))
             except (json.JSONDecodeError, UnicodeDecodeError):
-                raise Fault(400, 'Nieprawidłowy JSON')
+                raise Fault(400, tr('Invalid JSON'))
             if not isinstance(body, dict):
-                raise Fault(400, 'Wymagany obiekt JSON')
+                raise Fault(400, tr('A JSON object is required'))
             return body
 
         def _token(self):
             auth = self.headers.get('Authorization','')
             if not auth.startswith('Bearer '):
-                raise Fault(401, 'Brak tokenu')
+                raise Fault(401, tr('Missing token'))
             return auth[7:]
 
         def _admin_cookie(self):
@@ -847,36 +827,46 @@ def make_handler(store, admin=None, catalog_root=None):
                 return
             try:
                 if not ipaddress.ip_address(self.client_address[0]).is_loopback:
-                    raise Fault(403, 'Panel administracyjny dostępny tylko lokalnie na komputerze serwera')
+                    raise Fault(403, tr('The administrator panel is only available locally on the server'))
             except ValueError:
-                raise Fault(403, 'Nieprawidłowy adres połączenia')
+                raise Fault(403, tr('Invalid connection address'))
 
         def _require_admin(self):
             self._require_admin_local()
             if not admin.valid(self._admin_cookie()):
-                raise Fault(401, 'Brak sesji administratora')
+                raise Fault(401, tr('No administrator session'))
 
         def _require_admin_post(self):
             # Cross-site HTML forms cannot send this header; foreign fetch()
             # with the header triggers a denied CORS preflight.
             if self.headers.get('X-ACR-Admin') != '1':
-                raise Fault(403, 'Nieprawidłowe żądanie panelu')
+                raise Fault(403, tr('Invalid administrator request'))
             if self.headers.get('Sec-Fetch-Site') == 'cross-site':
-                raise Fault(403, 'Niedozwolone pochodzenie żądania')
+                raise Fault(403, tr('Request origin is not allowed'))
             origin = self.headers.get('Origin')
             if origin and not (browser_origin(origin, self.headers) if PUBLIC_URL else allowed_browser_origin(
                     origin, self.headers.get('Host', ''), self.server.server_port)):
                 print('Rejected admin Origin:', repr(origin[:180]),
                       'Host:', repr(self.headers.get('Host', '')[:180]), flush=True)
-                raise Fault(403, 'Niedozwolone pochodzenie żądania')
+                raise Fault(403, tr('Request origin is not allowed'))
             content_type = self.headers.get('Content-Type', '').split(';', 1)[0].strip().lower()
             if content_type != 'application/json':
-                raise Fault(415, 'Wymagany application/json')
+                raise Fault(415, tr('application/json is required'))
 
+        @request_localized
         def do_GET(self):
             try:
                 self._gateway_guard()
                 path = unquote(urlparse(self.path).path)
+                if path == '/language':
+                    query = parse_qs(urlparse(self.path).query)
+                    chosen = query.get('lang', [''])[0]
+                    if chosen not in SUPPORTED_LANGUAGES:
+                        raise Fault(400, tr('Unsupported language'))
+                    return self._write(303, '', 'text/plain; charset=utf-8', {
+                        'Location': safe_return_path(query.get('next', ['/'])[0]),
+                        'Set-Cookie': language_cookie(chosen, self._secure_cookie()),
+                    })
                 if path == secret_admin_path + '/seasons':
                     self._require_admin_local()
                     return self._write(200, private_admin_page(season_admin_html(), secret_admin_path), 'text/html; charset=utf-8',
@@ -894,7 +884,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200, {'status':'ok'})
                 if path == '/download':
                     if not DOWNLOAD_URL:
-                        raise Fault(503,'Instalator zostanie udostępniony po publikacji pierwszego wydania GitHub Releases')
+                        raise Fault(503,tr('The installer will be available after the first GitHub Release is published'))
                     return self._write(302,'','text/plain; charset=utf-8',{'Location':DOWNLOAD_URL})
                 if path == '/guide':
                     from driver_guide import page
@@ -903,9 +893,8 @@ def make_handler(store, admin=None, catalog_root=None):
                     csrf=secrets.token_urlsafe(24)
                     member=member_by_cookie(store,self._cookies().get('acrclub_member'))
                     from site_theme import shell
-                    content=shell('ACR Rally Club — Konto klubowe',
-                                  '<section class="hero"><span class="eyebrow">Klubowicze</span><h1>Konto klubowe</h1>'
-                                  '<p>Twój nick na cały sezon, rajdy i dywizje.</p></section>'+
+                    content=shell(tr('ACR Rally Club — Club account'),
+                                  tr('<section class="hero"><span class="eyebrow">Club members</span><h1>Club account</h1><p>Your nickname for the season, rallies and divisions.</p></section>')+
                                   club_page(member,csrf),active='club')
                     return self._write(200,content,'text/html; charset=utf-8',
                          {'Set-Cookie':make_cookie('acrclub_csrf',csrf,secure=self._secure_cookie())})
@@ -935,13 +924,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200, {'events': store.admin_listing()})
                 if path == '/launcher':
                     from site_theme import shell
-                    info = ('<section class="hero"><span class="eyebrow">Start rajdu / Windows</span>'
-                            '<h1>ACR Club Launcher</h1><p>Zainstaluj raz. Potem uruchamiaj rajdy jednym kliknięciem RUN RALLY.</p>'
-                            '<p><a class="btn-link" href="/download">⬇ Pobierz instalator Windows .EXE</a></p></section>'
-                            '<section class="card"><h2>Jak wystartować?</h2>'
-                            '<p>Nie potrzebujesz Pythona ani plików .bat. Pobierz .EXE, uruchom go i zaakceptuj protokół acrclub://.</p>'
-                            '<p>Na stronie klubu załóż konto, wybierz rajd i kliknij RUN RALLY. Launcher przygotuje zapis i uruchomi ACR przez Steam.</p>'
-                            '<p>Automatyczna nawigacja zatrzyma się przy START STAGE. Szczegóły: <a href="/guide">poradnik kierowcy →</a></p></section>')
+                    info = (tr('<section class="hero"><span class="eyebrow">Start a rally / Windows</span><h1>ACR Club Launcher</h1><p>Install once. Then start rallies with one click on RUN RALLY.</p><p><a class="btn-link" href="/download">⬇ Download Windows installer .EXE</a></p></section><section class="card"><h2>How to get started?</h2><p>You do not need Python or .bat files. Download the .EXE, run it and register the acrclub:// protocol.</p><p>Create an account on the club website, choose a rally and click RUN RALLY. The launcher prepares the save and starts ACR through Steam.</p><p>Navigate manually to START STAGE. Details: <a href="/guide">driver guide →</a></p></section>'))
                     return self._write(200, shell('ACR Rally Club — Launcher',info,active='launcher'),
                                        'text/html; charset=utf-8')
                 if path in ('/','/index.html'):
@@ -968,12 +951,13 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200, store.state(self._token()))
                 if path.startswith('/api/board/'):
                     return self._write(200, store.board(path.rsplit('/',1)[-1]))
-                raise Fault(404, 'Nie znaleziono')
+                raise Fault(404, tr('Not found'))
             except Fault as exc:
                 self._write(exc.code, {'error': str(exc)})
             except Exception:
-                self._write(500, {'error': 'Błąd serwera'})
+                self._write(500, {'error': tr('Server error')})
 
+        @request_localized
         def do_POST(self):
             try:
                 self._gateway_guard()
@@ -984,12 +968,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     self._require_web_form(data)
                     if path.endswith('/register'):
                         account=club_register(store,data.get('nickname',''))
-                        page=('<html lang="pl"><meta charset="utf-8"><title>Konto klubowe</title>'
-                              '<style>'+STYLE+'</style><main><h1>Zapisano do klubu!</h1><section class="card">'
-                              '<p>Nick: <strong>'+escape(account['nickname'])+'</strong></p>'
-                              '<p>Zapisz ten kod odzyskiwania w bezpiecznym miejscu — nie będzie ponownie wyświetlony:</p>'
-                              '<p><code>'+escape(account['recovery'])+'</code></p>'
-                              '<p><a href="/">Otwórz listę rajdów →</a></p></section></main></html>')
+                        page=(tr('<html lang="pl"><meta charset="utf-8"><title>Club account</title><style>')+STYLE+tr('</style><main><h1>Welcome to the club!</h1><section class="card"><p>Nick: <strong>')+escape(account['nickname'])+tr('</strong></p><p>Save this recovery code somewhere safe — it will not be shown again:</p><p><code>')+escape(account['recovery'])+tr('</code></p><p><a href="/">Open rally list →</a></p></section></main></html>'))
                         return self._write(200,page,'text/html; charset=utf-8',
                                            {'Set-Cookie':club_cookie(account['token'],secure=self._secure_cookie())})
                     account=club_recover(store,data.get('nickname',''),data.get('recovery',''))
@@ -1004,7 +983,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     member=member_by_cookie(store,cookies.get('acrclub_member'))
                     if path == '/web/enroll':
                         if PUBLIC_URL and member is None:
-                            raise Fault(403, 'W publicznej lidze wymagane jest konto klubowe (/club)')
+                            raise Fault(403, tr('A club account is required in the public league (/club)'))
                         if member is not None:
                             club_join(store,event_id,member['id'])
                             return self._redirect('/rally/'+quote(event_id,safe=''))
@@ -1020,15 +999,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     # The launch ticket is single-use, short-lived and is not a bearer account token.
                     safe = escape(protocol, quote=True)
                     import json as _json
-                    page = ('<!doctype html><html lang="pl"><head><meta charset="utf-8">'
-                            '<title>Uruchamianie ACR Rally Club</title><style>' + STYLE + '</style></head><body><main>'
-                            '<h1>Uruchamianie rajdu</h1><section class="card">'
-                            '<p>Jeśli przeglądarka pyta, wybierz „Otwórz ACR Club Launcher”.</p>'
-                            '<p><a class="run" style="display:inline-block" href="'+safe+'">▶ OTWÓRZ LAUNCHER</a></p>'
-                            '<p><small>Bilet wygaśnie po 60 sekundach. Jeśli nic się nie dzieje, '
-                            'sprawdź instalację launchera lub wróć na stronę rajdu.</small></p>'
-                            '<p><a href="/rally/'+escape(event_id,quote=True)+'">← Rajd</a></p></section></main>'
-                            '<script>window.location.href='+_json.dumps(protocol)+';</script></body></html>')
+                    page = (tr('<!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Starting ACR Rally Club</title><style>') + STYLE + tr('</style></head><body><main><h1>Starting the rally</h1><section class="card"><p>If prompted, select “Open ACR Club Launcher”.</p><p><a class="run" style="display:inline-block" href="')+safe+tr('">▶ OPEN LAUNCHER</a></p><p><small>The ticket expires after 60 seconds. If nothing happens, check the launcher installation or return to the rally page.</small></p><p><a href="/rally/')+escape(event_id,quote=True)+tr('">← Rally</a></p></section></main><script>window.location.href=')+_json.dumps(protocol)+';</script></body></html>')
                     return self._write(200, page, 'text/html; charset=utf-8',
                                        {'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'"})
                 data = self._body()
@@ -1040,7 +1011,7 @@ def make_handler(store, admin=None, catalog_root=None):
                         token = admin.login(data.get('key'), self._remote_ip())
                         if not token:
                             store.audit(self.client_address[0], 'login_failed', None, {})
-                            raise Fault(401, 'Nieprawidłowy klucz lub czasowa blokada logowania')
+                            raise Fault(401, tr('Invalid key or temporary sign-in lockout'))
                         store.audit(self.client_address[0], 'login_ok', None, {})
                         return self._write(200, {'ok': True}, extra_headers={'Set-Cookie': admin.cookie(token,secure=self._secure_cookie())})
                     self._require_admin()
@@ -1053,7 +1024,7 @@ def make_handler(store, admin=None, catalog_root=None):
                         return self._write(200,out)
                     if path.startswith('/api/admin/seasons/'):
                         bits=path.removeprefix('/api/admin/seasons/').split('/')
-                        if len(bits)!=2:raise Fault(404,'Nie znaleziono operacji sezonu')
+                        if len(bits)!=2:raise Fault(404,tr('Season operation not found'))
                         season_id=bits[0]
                         operation=bits[1] if len(bits)>1 else ''
                         if operation=='config':
@@ -1074,8 +1045,8 @@ def make_handler(store, admin=None, catalog_root=None):
                             elif action=='capacity' and kind=='team':
                                 out=set_team_capacity(store,season_id,data.get('id'),data.get('capacity'))
                             elif action=='delete':out=delete_group(store,season_id,kind,data.get('id'))
-                            else:raise Fault(400,'Nieznana operacja na grupie')
-                        else:raise Fault(404,'Nie znaleziono operacji sezonu')
+                            else:raise Fault(400,tr('Unknown group operation'))
+                        else:raise Fault(404,tr('Season operation not found'))
                         store.audit(self.client_address[0],'season_'+operation,season_id,{'request':data})
                         return self._write(200,out)
                     if path == '/api/admin/events':
@@ -1104,7 +1075,7 @@ def make_handler(store, admin=None, catalog_root=None):
                             return self._write(200, answer)
                         except ValueError as exc:
                             raise Fault(400, str(exc))
-                    raise Fault(404, 'Nie znaleziono operacji administracyjnej')
+                    raise Fault(404, tr('Administrator operation not found'))
                 if path == '/api/launcher/abort':
                     self._client_version()
                     return self._write(200, abort_prestart(store,self._token()))
@@ -1115,7 +1086,7 @@ def make_handler(store, admin=None, catalog_root=None):
                 elif path == '/api/join':
                     self._limit(path,12)
                     if PUBLIC_URL:
-                        raise Fault(403,'Zapisz się na stronie klubu; rejestracja nicku przez stare API jest wyłączona')
+                        raise Fault(403,tr('Register on the club website; nickname registration through the old API is disabled'))
                     out = store.join(data.get('eventId'), data.get('nickname'))
                 elif path == '/api/start':
                     self._client_version()
@@ -1124,7 +1095,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     self._client_version()
                     out = store.heartbeat(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('settings'))
                 elif path == '/api/integrity-violation':
-                    out = store.integrity_violation(self._token(),data.get('reason', 'Niezgodność ustawień'))
+                    out = store.integrity_violation(self._token(),data.get('reason', tr('Settings mismatch')))
                 elif path == '/api/dnf':
                     out = store.dnf(self._token(), data.get('reason', 'Wycofanie'))
                 elif path == '/api/stage-end':
@@ -1134,13 +1105,13 @@ def make_handler(store, admin=None, catalog_root=None):
                     self._client_version()
                     out = store.finalize(self._token(),data)
                 else:
-                    raise Fault(404, 'Nie znaleziono')
+                    raise Fault(404, tr('Not found'))
                 self._write(200, out)
             except Fault as exc:
                 self._write(exc.code, {'error': str(exc)})
             except Exception as exc:
                 print('Error', type(exc).__name__, str(exc), flush=True)
-                self._write(500, {'error': 'Błąd serwera'})
+                self._write(500, {'error': tr('Server error')})
 
     return Handler
 
@@ -1165,7 +1136,7 @@ def main():
     base_url = os.environ.get('ACR_PUBLIC_BASE_URL') or f'http://127.0.0.1:{args.port}'
     print(f'PRYWATNY PANEL ADMIN: {base_url}{get_admin_path(auth.key_path)}', flush=True)
     if os.environ.get('ACR_ADMIN_KEY'):
-        print('KLUCZ ADMIN: ustawiony w zmiennej ACR_ADMIN_KEY (wartość ukryta)', flush=True)
+        print('ADMIN KEY: set in ACR_ADMIN_KEY (value hidden)', flush=True)
     else:
         print(f'KLUCZ ADMIN w pliku: {auth.key_path}', flush=True)
     print(f'Listening on {args.host}:{args.port}; Ctrl+C to stop', flush=True)
