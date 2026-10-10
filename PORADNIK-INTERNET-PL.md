@@ -5,7 +5,10 @@
 To wersja przygotowana do wdrożenia na Render + Neon. Samo pobranie archiwum nie
 publikuje strony. Gotowy EXE powstanie dopiero po poprawnym zakończeniu wydania
 na GitHub Actions. Po wdrożeniu tę instrukcję należy uzupełnić rzeczywistym
-adresem strony, prywatnego panelu i repozytorium.
+adresem strony i prywatnego panelu.
+
+Repozytorium: https://github.com/ValtteriPSR/acr-daily
+Gałąź aplikacji i wdrożenia: `rally-club`. To prawdziwy fork ACR Daily.
 
 ## Co uruchamia administrator
 

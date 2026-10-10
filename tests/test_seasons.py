@@ -139,7 +139,7 @@ class SeasonTests(unittest.TestCase):
         self.assertEqual(season_config(self.s,self.sid)['events'][0]['generalPoints'],[45])
         for rank,mid in enumerate([m1['id'],m2['id']],1):
             p=club_player(self.s,self.e['id'],mid)
-            self.s.db.execute('UPDATE players SET status="completed" WHERE id=?',(p['id'],))
+            self.s.db.execute('UPDATE players SET status=? WHERE id=?',('completed',p['id']))
             for ix,stage in enumerate(self.e['stages']):
                 self.s.db.execute('INSERT INTO results(player_id,stage_index,stage_id,car_id,raw_ms,penalty_ms,total_ms,acr_started,finished) VALUES(?,?,?,?,?,?,?,?,?)',
                     (p['id'],ix,stage['stageId'],'VWPoloGTIR5',100000*rank,0,100000*rank,time.time()-1,time.time()))
