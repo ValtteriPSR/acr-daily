@@ -116,6 +116,9 @@ class WebLaunchWindow:
     def set_status(self,value):
         self.queue.put(('status',value))
 
+    def set_navigation(self,value):
+        self.queue.put(('navigation',value))
+
     def drain(self):
         try:
             while True:
@@ -125,6 +128,8 @@ class WebLaunchWindow:
                     self.text.insert('end',time.strftime('%H:%M:%S')+'  '+data+'\n')
                     self.text.see('end')
                     self.text.configure(state='disabled')
+                elif kind=='navigation':
+                    self.nav_notice.set(data)
                 else:
                     self.status.set(data)
         except queue.Empty:
@@ -200,11 +205,13 @@ class WebLaunchWindow:
                 raise RuntimeError('Próba zablokowana przez serwer')
             self.monitor=monitor
             preparation_complete=True
-            self.set_status('Nadzór aktywny · oczekuję na START pierwszego OS-u')
+            self.set_status(f'Nadzór aktywny · oczekuję na START OS {monitor.stage_index+1}')
+            navigation=('Otwórz Racing → Rally → Rally Weekend i kontynuuj zapisany rajd przed OS '+str(monitor.stage_index+1)+'. Nie twórz nowego Rally Weekend i nie zmieniaj samochodu ani ustawień.' if state['status']=='ready' else 'Przejdź samodzielnie: Racing → Rally → Rally Weekend → WYBIERZ SAMOCHÓD I NIE ZMIENIAJ ŻADNYCH USTAWIEŃ → START RALLY → opony → START STAGE.')
+            self.set_navigation(navigation)
             if os.name=='nt':
                 os.startfile('steam://rungameid/3917090')
                 self.log('ACR uruchomione przez Steam. Nie zamykaj launchera podczas jazdy.')
-                self.log('Przejdź samodzielnie: Racing → Rally → Rally Weekend → WYBIERZ SAMOCHÓD I NIE ZMIENIAJ ŻADNYCH USTAWIEŃ → START RALLY → opony → START STAGE.')
+                self.log(navigation)
             else:
                 self.log('Symulacja poza Windows: nie uruchamiam Steam')
             self.watch(monitor)

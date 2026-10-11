@@ -33,7 +33,7 @@
     "client/club_local/site_config.py": "3953f160e3bcd1779ba827b8bf1ea36c45dbb6292646ab9c42b75cbe92da8af9",
     "client/club_local/version.py": "b9ee7a29ef603566c4e57451cab046be9a54b8c490fe365c0b07c6aedfd72561",
     "client/club_local/web_install.py": "c2271ea0a76da9d1889651e1c4cac7bb9a174c9bf8f8c870dd416fe26a85b4c0",
-    "client/club_local/web_launch.py": "12237c86b99ff3c334269a9f75fca6db270034b0d7d25762b9395be5448efc73",
+    "client/club_local/web_launch.py": "6a7d95f1f5ffdc29820c03410f6dad6fc69275939ed2b0d204c199642be8df5b",
     "client/run_club.py": "afb4f189be577a98ba44342d39fab680050aa8d5e628dc2f788b825d331844dd",
     "client/run_web_launcher.py": "977591b8a22431987050bde7356b130b33e401b8c95be089ae36947ea2fb885f",
     "create_demo_rally.bat": "97b4c8d8d9cec7854d3bb54f92fec03e1e933d3be48d9d716192ad6b6025358e",
