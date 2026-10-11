@@ -10,7 +10,7 @@
   "note": "125 SQLite/regression tests passed locally. CI validates PostgreSQL, portable hosting and the frozen Windows installer. Steam signature verification and Discord transport are mocked; existing Steam accounts and results are preserved.",
   "files": {
     ".dockerignore": "d6c115a5f6dd79db80e5858f19e6f3db1b1ab71ff8a86f654c2cdabb03aa675a",
-    ".github/workflows/launcher-release.yml": "608f769562b21f67d44f798f1af5a213b2c70f1cde113dc242f6b6f85316f3e6",
+    ".github/workflows/launcher-release.yml": "2e2653b535b861af7a7a15b921bfb88f16637c4e7a8782fbea72204ee1efb72f",
     ".github/workflows/server-checks.yml": "ea58e75716dbe9b875a34d2ba73c26276426991ba742303e2c45598e46279248",
     ".gitignore": "09c45fa1396e12299389a71f005e3f3447ce56702ee57e3e2b7f3686f7d45ff6",
     "LICENSE": "e41c13612721f384779ba3c746c741878ca0cf501bc64ad0d03183cfedd42075",
