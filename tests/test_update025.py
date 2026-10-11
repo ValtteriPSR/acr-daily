@@ -1,11 +1,14 @@
 """Telemetry penalty floors and confirmed break regressions, no production writes."""
 import struct
+import sys
+from pathlib import Path
 from types import SimpleNamespace
 from unittest import mock
 import test_update024 as fixtures
 import unittest
 import attempt_updates as updates
 from server import Fault
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'client'))
 
 
 class LivePenaltyTests(unittest.TestCase):

@@ -11,7 +11,7 @@
   "files": {
     ".dockerignore": "d6c115a5f6dd79db80e5858f19e6f3db1b1ab71ff8a86f654c2cdabb03aa675a",
     ".github/workflows/launcher-release.yml": "b812e98eb23c68956cd7d753e971e40e36852c582cb80aff6ce394edba64be1b",
-    ".github/workflows/server-checks.yml": "15043d60d4a564fc01f62be60a7cf769f431117d13035235aeec0270143095b5",
+    ".github/workflows/server-checks.yml": "a3b137e46baddbeb34a64c081a737fad32108cc66410da8738d091e294ba9f35",
     ".gitignore": "09c45fa1396e12299389a71f005e3f3447ce56702ee57e3e2b7f3686f7d45ff6",
     "LICENSE": "e41c13612721f384779ba3c746c741878ca0cf501bc64ad0d03183cfedd42075",
     "README.md": "e25e5b358e99bfd33d27357805dcceb9bc7aed800154be6c17acc0dc9e42c5fe",
@@ -108,7 +108,7 @@
     "tests/test_steam_auth.py": "ea0e9fc6623655d7869251472898b600c8590ff8abd6d086ed6a5e396ed4a7c5",
     "tests/test_ui_v51.py": "12abf7b53bea2f975e7020147bdda8ad768bc927ea44525d26b15cc6afe367db",
     "tests/test_update024.py": "94b259db2d3f6d0b40fb11eabe1401db8a7f8dc1c3f464a38ee239cd896959b5",
-    "tests/test_update025.py": "ce70798eab4604c457c4e8316c89c947d08bb16b3f965ad3d56629138d4a4202",
+    "tests/test_update025.py": "7486b4b99b4bfebac27dc48e6559e3c4b204a9d4f23875441dbdf36fae6ec3d3",
     "tests/test_v62_calendar.py": "1e5a757dd2b0c7f4b214326450b72519c0ae55202284a109b4b91c21dc9f4e7c",
     "tests/test_v62_regressions.py": "a91b6127f06f8798e3431a0b5251d5024dd0e5c04584f71f4e1fc4f1e2841ea0",
     "tests/test_v6_public.py": "a4fac38610e9a60c1bbbf4e91b536e5df1bf9af1a4cce5c76f481b5c91a29e57",
