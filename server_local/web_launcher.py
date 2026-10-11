@@ -125,7 +125,8 @@ def redeem_ticket(store, ticket):
 def abort_prestart(store, token):
     """Release RUN lease after local preparation failure. Does not reset a stage attempt.
 
-    Only an untouched, newly registered first stage can be aborted. Bearer token
+    An untouched first stage or idle service preparation can be aborted. No stage
+    progress or result is reset. Bearer token
     is rotated on abort so a captured old token cannot be replayed.
     """
     from server import Fault
@@ -133,13 +134,13 @@ def abort_prestart(store, token):
         store._begin()
         try:
             player=store._auth(token)
-            if player['status'] != 'registered' or player['stage_index'] != 0 or player['started'] is not None:
+            if player['status'] not in ('registered','ready') or player['started'] is not None:
                 raise Fault(409, tr('Cannot cancel RUN after a stage has started'))
             store.db.execute('DELETE FROM launch_leases WHERE player_id=?', (player['id'],))
             store.db.execute('UPDATE players SET token_hash=? WHERE id=?',
                              (digest(secrets.token_urlsafe(32)), player['id']))
             store.db.execute('COMMIT')
-            return {'ok':True, 'status':'registered'}
+            return {'ok':True, 'status':player['status']}
         except Exception:
             if store.db.in_transaction:store.db.execute('ROLLBACK')
             raise

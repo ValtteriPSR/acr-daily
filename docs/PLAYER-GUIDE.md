@@ -28,3 +28,7 @@ Check the policy in **Conditions**:
 Each stage has one attempt. Times appear after every SS; telemetry times are clearly provisional. Positive penalties read from supported telemetry appear immediately with the provisional stage time. Zero/unsupported telemetry is not proof of no penalties. Official save-confirmed times appear as soon as ACR persists them, without waiting for the next stage. Final points require FINISH and are calculated after the rally closes. The page refreshes results every five seconds and preserves opened stage details.
 
 Dates use fixed UTC+2. If RUN opens nothing, rerun the installer and allow external application links. To recover your account, sign in with the same Steam account. Logs are at `%LOCALAPPDATA%\ACR Rally Club\player-events.log`; review them before sharing.
+
+## Private Rally Weekends between Club stages
+
+With launcher 0.2.6, wait for a confirmed server checkpoint after an allowed exit at service, then close the launcher. You can play an unrelated private weekend. Close ACR before RUN; the Club checkpoint takes priority and restores your progress, including damage, before the next SS. The current local save is backed up before replacement. Server restoration does not depend on your old local session file. Older rallies also upload checkpoints at service using the updated launcher; copies that were never uploaded cannot be recovered from stage times. First RUN can prepare a new Club calendar over a private in-progress weekend after backing up the full original save.

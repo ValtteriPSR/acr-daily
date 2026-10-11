@@ -5,10 +5,6 @@ No participant token is embedded in a web URL.
 """
 from __future__ import annotations
 import json
-import base64
-import gzip
-import hashlib
-import io
 import os
 from pathlib import Path
 import queue
@@ -23,6 +19,7 @@ from urllib.parse import urlsplit, parse_qs
 from acr_daily import rallyclub, saveslot, settings as acr_daily_settings
 from .monitor import Api, ApiError, AttemptMonitor, baseline_counts
 from . import integrity
+from .checkpoint_restore import restore as restore_club_checkpoint
 from .version import VERSION
 
 
@@ -155,12 +152,7 @@ class WebLaunchWindow:
             player_id=launch['playerId']
             api.token=token
             self.log(f'RUN potwierdzony: {nickname} · {event["name"]} · {len(event["stages"])} OS')
-            catalog=api.call('/api/catalog') if event.get('launcherProtocol')=='0.2.4' else None
-            try:
-                from acr_daily import rallyweekend
-                for entry in rallyweekend.results(Path(saveslot.SAVE).read_bytes())[-10:]:
-                    self.log('KATALOG: stageId='+entry['stage']+' | carId='+','.join(r['car'] for r in entry['runs']))
-            except (OSError,ValueError,IndexError,TypeError): pass
+            catalog=api.call('/api/catalog')
             state=api.call('/api/me')
             if state['status'] not in ('registered','ready'):
                 raise RuntimeError('Rajd nie może być wznowiony: '+state['status'])
@@ -171,28 +163,14 @@ class WebLaunchWindow:
                 old=json.loads(SESSION.read_text(encoding='utf-8'))
             except (OSError,ValueError):
                 old={}
-            checkpoint=None
+            restored=None
             if state['status']=='ready':
                 if not event.get('allowBreaks',True):
                     api.call('/api/integrity-violation',{'reason':'Próba wznowienia rajdu wymagającego jazdy na raz'})
                     raise RuntimeError('Rajd wymaga jazdy na raz; ponowne uruchomienie oznacza DNF')
-                if event.get('launcherProtocol')=='0.2.4':
-                    checkpoint=api.call('/api/checkpoint')
-                    if checkpoint.get('available'):
-                        compressed=base64.b64decode(checkpoint['save'],validate=True)
-                        with gzip.GzipFile(fileobj=io.BytesIO(compressed)) as f: raw=f.read(4*1024*1024+1)
-                        if len(raw)>4*1024*1024 or hashlib.sha256(raw).hexdigest()!=checkpoint['digest']:
-                            raise RuntimeError('Nieprawidłowa kopia zapisu; wstrzymuję wznowienie')
-                        # Verify the restored save against this exact event before replacement.
-                        from acr_daily import rallyweekend
-                        from .integrity_rules import compare
-                        report=integrity.report_from_save(raw)
-                        if compare(event,report): raise RuntimeError('Kopia zapisu ma inne ustawienia rajdu')
-                        saveslot.replace(raw)
-                        old={'eventId':event['id'],'playerId':player_id,'baseline':checkpoint['baseline']}
-                        self.log('Przywrócono kopię konkretnego gracza z serwera; kontynuuj kolejny OS')
-                    else:
-                        self.log('Brak kopii na serwerze; sprawdzam lokalny zapis i bazę poprzedniej sesji')
+                restored=restore_club_checkpoint(api,event,player_id,state,self.log)
+                if restored is not None:
+                    old=restored
             same=(old.get('eventId')==event['id'] and old.get('playerId')==player_id)
             if state['status']=='ready' and (not same or old.get('baseline') is None):
                 raise RuntimeError('Brak zapisanej bazy wyników poprzedniego OS-u na tym komputerze. '
@@ -203,12 +181,17 @@ class WebLaunchWindow:
             session={'server':server,'eventId':event['id'],'playerId':player_id,
                      'nickname':nickname,'token':token,'baseline':baseline}
             SESSION.write_text(json.dumps(session,ensure_ascii=False,indent=2),encoding='utf-8')
+            try:
+                from acr_daily import rallyweekend
+                for entry in rallyweekend.results(Path(saveslot.SAVE).read_bytes())[-10:]:
+                    self.log('KATALOG: stageId='+entry['stage']+' | carId='+','.join(r['car'] for r in entry['runs']))
+            except (OSError,ValueError,IndexError,TypeError): pass
             if state['status']=='registered':
                 self.log('Tworzę kopię bezpieczeństwa i przygotowuję Rally Weekend w Twoim zapisie...')
-                rallyclub.write_club_weekend(event,event['allowedCars'][0],{c['id']:c for c in catalog['cars']} if catalog else None)
+                rallyclub.write_club_weekend(event,event['allowedCars'][0],{c['id']:c for c in catalog['cars']},replace_in_progress=True)
                 self.log('Kalendarz rajdu został zapisany; gra jest nadal zamknięta.')
             else:
-                self.log('Wznawiam przed kolejnym OS-em, bez podmiany aktywnego zapisu gry.')
+                self.log('Wznawiam przed kolejnym OS-em z '+('kopii serwera.' if restored is not None else 'oryginalnego lokalnego zapisu Club.'))
             integrity.read_and_check(event)
             self.log('Kontrola zasad i kalendarza Rally Weekend: OK')
             monitor=AttemptMonitor(api,event,nickname,self.log,baseline=baseline)
@@ -266,7 +249,7 @@ class WebLaunchWindow:
             if not self.monitor.event.get('allowBreaks',True):
                 if not messagebox.askyesno('ACR Rally Club','Ten rajd wymaga jazdy na raz. Zamknięcie launchera oznacza DNF. Zamknąć?'): return
                 self.monitor.close()
-            elif not self.monitor.checkpoint_sent:
+            elif not self.monitor.checkpoint_sent and (self.monitor.event.get('launcherProtocol')=='0.2.4' or self.monitor.event['stages'][self.monitor.stage_index].get('serviceBefore',False)):
                 messagebox.showwarning('ACR Rally Club','Najpierw wyjdź z gry na dozwolonym serwisie i poczekaj na komunikat PRZERWA: kopia zapisu przesłana na serwer. Nie zamykaj launchera przed potwierdzeniem kopii.')
                 return
         self.running=False

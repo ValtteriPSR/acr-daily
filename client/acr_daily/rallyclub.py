@@ -209,7 +209,7 @@ def apply_club_weekend(data, event, car_id, cars_by_id=None):
     return output
 
 
-def write_club_weekend(event, car_id, cars_by_id=None):
+def write_club_weekend(event, car_id, cars_by_id=None, *, replace_in_progress=False):
     """Write Rally Weekend calendar using ACR Daily's game-closed guard and backup.
 
     Does NOT configure the car; drivers select a permitted car in ACR.
@@ -221,7 +221,15 @@ def write_club_weekend(event, car_id, cars_by_id=None):
         raise SaveError('PlayerDataSaveSlot.sav not found')
     with open(saveslot.SAVE, 'rb') as source:
         original = source.read()
-    changed = apply_club_weekend(original, event, car_id, cars_by_id)
+    prepared=original
+    if replace_in_progress:
+        try: current=rw.read_weekend(original)
+        except SaveError: current=None  # apply_club_weekend retains its format recovery.
+        if current and current['in_progress']:
+            prepared,_=rw.park(original)
+    changed = apply_club_weekend(prepared, event, car_id, cars_by_id)
+    # The on-disk original is still intact here: replace() backs up the entire
+    # private in-progress weekend, not just the stripped preparation buffer.
     saveslot.replace(changed)
     return len(event['stages'])
 

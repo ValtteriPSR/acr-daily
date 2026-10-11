@@ -1,3 +1,15 @@
+## ACR Rally Club 0.2.6
+
+- Authenticated personal Club checkpoints take priority over unrelated local Rally Weekends and stale/missing local launcher session files. Validate owner, rally, stage, settings, checksum and in-progress save position before replacing any local data.
+- Upload service checkpoints for legacy rallies too; those events previously skipped the server-backup path. Missing historical copies cannot be reconstructed from stage times. Existing legacy local continuation outside service remains unchanged.
+- First RUN can prepare a Club calendar over an unrelated in-progress private weekend, retaining the full original save in the regular game backup. Resume never creates a new Club calendar or resets completed stages.
+- Failed preparation at service releases the RUN lease without resetting OS results or progress. New protocol rallies require launcher 0.2.6 at stage start.
+- Updated participant instructions for a Club SS, confirmed checkpoint, private weekend, and subsequent Club resume.
+
+### Verification and limits
+
+Regression tests simulate replacing an unrelated private save with the authenticated personal checkpoint, preserving damage and completed stages, missing local files, bad owner/rally/progress/checksum, legacy checkpoint uploads and prestart/service lease cleanup. CI validates PostgreSQL, browsers, Docker and the compiled Windows launcher. Actual Windows/ACR save persistence and Steam Cloud interaction still require a game test. No player attempts were reset to work around missing historic saves.
+
 ## ACR Rally Club 0.2.5
 
 - Read-only `penaltyTime` telemetry extension; positive penalties reported during driving and persisted with the provisional result at stage finish, before a game restart.

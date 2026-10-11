@@ -519,8 +519,9 @@ class AttemptMonitor:
         self.prev_clock = f.clock_ms
 
     def _exit_at_service(self, now):
-        if self.event.get('launcherProtocol')!='0.2.4': return
         next_stage=self.event['stages'][self.stage_index]
+        if self.event.get('launcherProtocol')!='0.2.4' and self.event.get('allowBreaks',True) and not next_stage.get('serviceBefore',False):
+            return  # Existing legacy local continuation outside service stays unchanged.
         if not self.event.get('allowBreaks',True) or not next_stage.get('serviceBefore',False):
             self._reject_integrity('Wyjście z gry poza dozwolonym serwisem; rajd musi być kontynuowany bez zamykania gry')
             return
@@ -534,11 +535,15 @@ class AttemptMonitor:
             from .integrity_rules import compare
             report=integrity.report_from_save(raw)
             if compare(self.event,report): raise ValueError('Ustawienia zapisu różnią się od rajdu')
+            progress=rallyweekend.progress(raw)
+            if not progress or progress.get('done')!=self.stage_index:
+                raise ValueError('Gra nie zapisała jeszcze postępu przed kolejnym OS-em')
             if len(raw)>4*1024*1024: raise ValueError('Plik zapisu przekracza limit 4 MB')
             self.api.call('/api/checkpoint',{'save':base64.b64encode(gzip.compress(raw)).decode('ascii'),
                 'digest':hashlib.sha256(raw).hexdigest(),'baseline':self.baseline,
                 'stageIndex':self.stage_index,'settings':report})
             self.checkpoint_sent=True
+            self.dead=True  # The Club session is parked; do not monitor a later private rally.
             self.emit('PRZERWA: kopia zapisu przesłana na serwer. Możesz zamknąć launcher. Wznów przez RUN na stronie.')
         except (ApiError,OSError,ValueError) as exc:
             self.emit('Nie zapisano kopii na serwerze; nie zamykaj launchera, ponawiam: '+str(exc))

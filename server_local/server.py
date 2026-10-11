@@ -1228,8 +1228,8 @@ def make_handler(store, admin=None, catalog_root=None):
                     with store.lock:
                         actor=store._auth(self._token());_,ev=store.event(actor['event_id'])
                         v=self.headers.get('X-ACR-Launcher-Version','')
-                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,5)):
-                            raise Fault(426,'Install the latest 0.2.5 launcher from /download for this rally')
+                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,6)):
+                            raise Fault(426,'Install the latest 0.2.6 launcher from /download for this rally')
                     out = store.start(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('carId'), data.get('settings'))
                 elif path == '/api/heartbeat':
                     self._client_version()

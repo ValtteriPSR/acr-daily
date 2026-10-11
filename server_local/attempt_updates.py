@@ -115,7 +115,7 @@ def checkpoint(store,token,data=None):
         if data is None:
             row=store.db.execute('SELECT * FROM rally_checkpoints WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
             if not row: return {'available':False}
-            return {'available':True,**json.loads(row['payload']),'digest':row['digest'],'stageIndex':idx}
+            return {'available':True,**json.loads(row['payload']),'digest':row['digest'],'stageIndex':idx,'playerId':p['id'],'eventId':p['event_id']}
         if data.get('stageIndex')!=idx or compare_settings(ev,data.get('settings')): raise Fault(409,'Checkpoint settings or progress do not match the rally')
         packed=data.get('save');baseline=data.get('baseline')
         if not isinstance(packed,str) or len(packed)>MAX_PACKED*4//3+8 or not isinstance(baseline,dict) or len(json.dumps(baseline))>256000: raise Fault(413,'Checkpoint is too large')

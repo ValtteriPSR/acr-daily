@@ -58,6 +58,9 @@ class FakeApi:
         if endpoint=='/api/stage-result':
             import attempt_updates
             return attempt_updates.stage_result(self.store,self.token,data)
+        if endpoint=='/api/checkpoint':
+            import attempt_updates
+            return attempt_updates.checkpoint(self.store,self.token,data)
         if endpoint=='/api/finalize':return self.store.finalize(self.token,data)
         if endpoint=='/api/dnf':return self.store.dnf(self.token,data['reason'])
         if endpoint=='/api/integrity-violation':return self.store.integrity_violation(self.token,data['reason'])
@@ -209,6 +212,20 @@ class MonitorTests(TestCase):
             self.assertFalse(any(c.args[0]=='/api/checkpoint' for c in call.call_args_list))
         self.assertFalse(self.mon.checkpoint_sent)
         self.assertTrue(any('NIEZATWIERDZONA' in line for line in self.log))
+
+    def test_legacy_rally_uploads_personal_checkpoint_after_service_exit(self):
+        self.ev['stages'][1]['serviceBefore']=True
+        self.store.db.execute('UPDATE events SET config=? WHERE id=?',(json.dumps(self.ev),self.ev['id']))
+        self.step(0,frame(0));self.step(.1,frame(500));self.step(.3,frame(203452));self.step(.8,frame(203452));self.step(2.3,frame(203452,5))
+        self.save.write_text(json.dumps([{'stage':self.ev['stages'][0]['stageId'],'started':time.time()-5,
+            'runs':[{'car':'VWPoloGTIR5','time':203.452,'penalty':34.0}]}]))
+        self.step(4,None)
+        with mock.patch.object(monitor.rallyweekend,'progress',return_value={'done':1},create=True),mock.patch.object(monitor.integrity,'report_from_save',return_value=expected_settings(self.ev)):
+            self.mon._exit_at_service(10)
+        self.assertTrue(self.mon.checkpoint_sent)
+        self.assertTrue(self.mon.dead)
+        import attempt_updates
+        self.assertTrue(attempt_updates.checkpoint(self.store,self.token)['available'])
 
 if __name__=='__main__':
     import unittest;unittest.main()

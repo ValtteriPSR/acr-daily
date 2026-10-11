@@ -57,7 +57,7 @@ def rally_conditions(event):
         ('Road wetness', tr('By stage weather')),
         ('Starting snow cover', f"{actual['stages'][0]['snow']:.0%}"),
         ('Time progression', tr('Fixed')),
-        ('Breaks', (tr('Exit only at service; resume from backup') if event.get('allowBreaks',True) else tr('One sitting; do not close the game')) if event.get('launcherProtocol')=='0.2.4' else tr('Continuation from unchanged local save')),
+        ('Breaks', (tr('Exit only at service; resume from backup') if event.get('allowBreaks',True) else tr('One sitting; do not close the game')) if event.get('launcherProtocol')=='0.2.4' else tr('At service: server backup with launcher 0.2.6; otherwise unchanged local save')),
     ]
     return ('<section class="card rally-conditions"><span class="section-kicker">Rally Weekend</span><h2>'
             + escape(tr('Conditions')) + '</h2><dl class="conditions-grid">'
