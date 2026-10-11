@@ -48,7 +48,9 @@ def main():
                         page.set_viewport_size({'width':width,'height':900})
                         for path in ('/', '/guide','/launcher','/seasons', '/rally/'+ev['id'],admin_path(auth.key_path),admin_path(auth.key_path)+'/seasons'):
                             page.goto(origin+path)
-                            assert page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'),(lang,width,path,'page overflow')
+                            if not page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'):
+                                print('Overflow nodes:',page.evaluate("[...document.querySelectorAll('main *, .sitebar *')].filter(e=>{const r=e.getBoundingClientRect();return r.right>innerWidth+1 && getComputedStyle(e).position!=='absolute'}).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width,text:e.textContent.slice(0,70)})).slice(0,15)"))
+                                raise AssertionError((lang,width,path,'page overflow'))
                             assert page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(20, 29, 48)'"),(lang,width,path,'background')
                             assert page.locator('.discord-invite').get_attribute('href')=='https://discord.gg/club42'
                             if path=='/launcher':assert 'Python' not in page.locator('main').inner_text() and '.bat' not in page.locator('main').inner_text()

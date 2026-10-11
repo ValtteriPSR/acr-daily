@@ -461,6 +461,7 @@ class AttemptMonitor:
         self.prev_clock = f.clock_ms
 
     def _exit_at_service(self, now):
+        if self.event.get('launcherProtocol')!='0.2.4': return
         next_stage=self.event['stages'][self.stage_index]
         if not self.event.get('allowBreaks',True) or not next_stage.get('serviceBefore',False):
             self._reject_integrity('Wyjście z gry poza dozwolonym serwisem; rajd musi być kontynuowany bez zamykania gry')

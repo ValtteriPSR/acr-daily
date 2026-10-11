@@ -513,6 +513,11 @@ class Store:
                 r.update(stage_id=event['stages'][r['stage_index']]['stageId'],penalty_ms=None,verified=False)
             stage_results.extend(pending)
             stage_results.sort(key=lambda r:(r['stage_index'],r['total_ms'],r['player_id']))
+            players=[dict(p) for p in players]
+            for p in players:
+                rows=[r for r in stage_results if r['player_id']==p['id']]
+                p['live_total']=sum(r['total_ms'] for r in rows)
+                p['pending_stages']=sum(not r['verified'] for r in rows)
             return {'event': event, 'players': [dict(p) for p in sorted(players,
                     key=lambda p:(p['status'] != 'completed', -p['completed_stages'], p['total'], p['nickname'].lower()))],
                     'stageResults':stage_results}
@@ -624,9 +629,10 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
         label={'completed':tr('FINISH'),'dnf':'DNF','ready':tr('BETWEEN STAGES'),'active':tr('ON STAGE'),'registered':tr('REGISTERED'),'awaiting_results':tr('VERIFICATION')}.get(p['status'],p['status'])
         status_css='status-done' if p['status']=='completed' else 'status-dnf' if p['status']=='dnf' else ''
         status_text=label+((' · '+str(p['terminal_reason'])[:100]) if p['status']=='dnf' and p.get('terminal_reason') else '')
-        result=format_ms(p['total']) if p['completed_stages'] else '—'
+        result=format_ms(p.get('live_total',p['total'])) if p['stage_index'] else '—'
+        if p.get('pending_stages'): result+=' · '+tr('Provisional')
         content+=('<tr data-driver="'+escape(p['nickname'],quote=True)+'"><td class="rank-col">'+str(i)+'</td><td><strong>'+escape(p['nickname'])+'</strong></td>'
-                  '<td>'+escape(p['car_id'] or '—')+'</td><td>'+str(p['completed_stages'])+'/'+str(total_stages)+'</td>'
+                  '<td>'+escape(p['car_id'] or '—')+'</td><td>'+str(p['stage_index'])+'/'+str(total_stages)+'</td>'
                   '<td class="mono"><strong>'+escape(result)+'</strong></td><td>'+pill(status_text,status_css)+'</td></tr>')
     content+='</tbody></table></div>'
     if not data['players']:content+=tr('<div class="empty">No drivers have registered yet.</div>')
