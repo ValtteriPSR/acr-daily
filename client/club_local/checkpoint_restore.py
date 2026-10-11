@@ -20,18 +20,22 @@ def _report(raw):
 
 
 def restore(api,event,player_id,state,log):
-    if state['status']!='ready': return None
+    recovery=bool(state.get('recoveryRequired'))
+    if state['status']!='ready' and not (recovery and state['status']=='registered'): return None
     idx=state['stage_index']
-    if type(idx) is not int or not 0<idx<len(event['stages']):
+    if type(idx) is not int or not 0<=idx<len(event['stages']) or (idx==0 and not recovery):
         raise RuntimeError('Nieprawidłowy postęp rajdu na serwerze; zapis nie został zmieniony')
     if not event.get('allowBreaks',True):
         raise RuntimeError('Rajd wymaga jazdy na raz; nie można przywrócić przerwy')
     # Legacy events allowed unchanged local continuation outside service. They
     # cannot have a server checkpoint there; preserve that existing behavior.
-    if not event['stages'][idx].get('serviceBefore',False) and event.get('launcherProtocol')!='0.2.4':
+    if not recovery and not event['stages'][idx].get('serviceBefore',False) and event.get('launcherProtocol')!='0.2.4':
         return None
-    checkpoint=api.call('/api/checkpoint')
+    checkpoint=api.call('/api/recovery-checkpoint' if recovery else '/api/checkpoint')
     if not checkpoint.get('available'):
+        if recovery and idx==0: return None  # A fresh canonical calendar is safe before any stage.
+        if recovery:
+            raise RuntimeError('Brak zatwierdzonej kopii przed kolejnym OS-em. Podejście i wyniki zachowane; skontaktuj się z administratorem. Nie odtwarzam OS1 ani postępu z samych czasów.')
         if event.get('launcherProtocol')=='0.2.4':
             raise RuntimeError('Brak zatwierdzonej kopii przerwy na serwerze. Nie odtwarzam postępu z prywatnego Rally Weekend; skontaktuj się z administratorem.')
         log('Starszy rajd: brak kopii na serwerze. Wznowienie wymaga oryginalnego, niezmienionego lokalnego zapisu Club.')
@@ -56,7 +60,7 @@ def restore(api,event,player_id,state,log):
     if compare(event,_report(raw)):
         raise RuntimeError('Kopia ma inne ustawienia rajdu; zapis nie został zmieniony')
     progress=rallyweekend.progress(raw)
-    if not progress or progress.get('done')!=idx:
+    if (idx and (not progress or progress.get('done')!=idx)) or (not idx and progress and progress.get('done',0)!=0):
         raise RuntimeError('Kopia nie zawiera postępu przed właściwym OS-em; zapis nie został zmieniony')
     if saveslot.game_running():
         raise RuntimeError('Zamknij ACR przed przywróceniem kopii Club')
@@ -73,4 +77,6 @@ def restore(api,event,player_id,state,log):
         try: os.replace(temporary,target)
         finally: temporary.unlink(missing_ok=True)
     log(f'Przywrócono osobistą kopię Club z serwera przed OS {idx+1}; lokalny Rally Weekend nie ma pierwszeństwa.')
+    if recovery:
+        api.call('/api/recovery-ack',{'digest':checkpoint['digest'],'settings':_report(raw)})
     return {'eventId':event['id'],'playerId':player_id,'baseline':baseline}

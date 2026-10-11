@@ -1,3 +1,12 @@
+## ACR Rally Club 0.2.7
+
+- Settings mistakes outside an active stage in a continuation rally preserve the attempt and trigger a persistent yellow restore-with-RUN warning. New starts, official submissions and checkpoint replacement are blocked until a verified restore.
+- Valid personal save copies are uploaded before OS1 and after confirmed stage results while ACR is still open. Restoring after OS1 keeps stage progress, accepted penalties and damage; an accepted stage cannot be restarted.
+- The launcher restores the latest server copy before local-save prerequisites. A first-stage configuration can be rebuilt before any attempt, while missing historical post-stage copies fail safely without inventing progress.
+- Active-stage changes still mean DNF. Normal service breaks and one-sitting rules remain enforced. Existing DNF attempts are not automatically reset.
+- Recovery warnings refresh with the standings without replacing CSRF forms. Additive database tables preserve existing results.
+- Regression coverage includes first-stage recovery, live post-stage snapshots, restore acknowledgement, protected checkpoints, no results while blocked and unchanged active-stage penalties. Actual ACR persistence requires Windows game validation.
+
 ## ACR Rally Club 0.2.6
 
 - Authenticated personal Club checkpoints take priority over unrelated local Rally Weekends and stale/missing local launcher session files. Validate owner, rally, stage, settings, checksum and in-progress save position before replacing any local data.

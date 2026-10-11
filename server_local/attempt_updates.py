@@ -21,6 +21,35 @@ def install(store):
     store.db.execute('''CREATE TABLE IF NOT EXISTS rally_checkpoints (
       player_id INTEGER PRIMARY KEY REFERENCES players(id), stage_index INTEGER NOT NULL,
       payload TEXT NOT NULL, digest TEXT NOT NULL, created REAL NOT NULL)''')
+    store.db.execute('''CREATE TABLE IF NOT EXISTS rally_recovery (
+      player_id INTEGER PRIMARY KEY REFERENCES players(id),
+      stage_index INTEGER NOT NULL, reason TEXT NOT NULL, created REAL NOT NULL)''')
+
+
+def recovery_state(store,player_id):
+    row=store.db.execute('SELECT reason FROM rally_recovery WHERE player_id=?',(player_id,)).fetchone()
+    return {'recoveryRequired':bool(row),'recoveryReason':row['reason'] if row else ''}
+
+
+def require_recovery(store,p,reason):
+    store.db.execute('''INSERT INTO rally_recovery(player_id,stage_index,reason,created)
+      VALUES(?,?,?,?) ON CONFLICT(player_id) DO UPDATE SET stage_index=excluded.stage_index,
+      reason=excluded.reason,created=excluded.created''',(p['id'],p['stage_index'],str(reason)[:300],time.time()))
+    store.db.execute('DELETE FROM launch_leases WHERE player_id=?',(p['id'],))
+    return {'ok':True,'status':p['status'],**recovery_state(store,p['id'])}
+
+
+def recovery_ack(store,token,data):
+    from server import Fault
+    with store.lock:
+        p=store._auth(token);_,ev=store.event(p['event_id'])
+        if p['status'] not in ('registered','ready') or not ev.get('allowBreaks',True):
+            raise Fault(409,'Recovery is not allowed during an active stage')
+        row=store.db.execute('SELECT digest FROM rally_checkpoints WHERE player_id=? AND stage_index=?',(p['id'],p['stage_index'])).fetchone()
+        if not row or data.get('digest')!=row['digest'] or compare_settings(ev,data.get('settings')):
+            raise Fault(409,'Restore the latest confirmed Club copy before RUN')
+        store.db.execute('DELETE FROM rally_recovery WHERE player_id=?',(p['id'],))
+        return {'ok':True}
 
 
 def observe_penalty(store,p,idx,value):
@@ -43,6 +72,8 @@ def late_penalty(store,token,data):
     from server import Fault
     with store.lock:
         p=store._auth(token);idx=data.get('stageIndex')
+        if recovery_state(store,p['id'])['recoveryRequired']:
+            raise Fault(409,'Settings recovery is required; no telemetry will be accepted')
         if p['status'] not in ('ready','awaiting_results') or type(idx) is not int or idx!=p['stage_index']-1:
             raise Fault(409,'No just-finished stage awaiting telemetry')
         prov=store.db.execute('SELECT clock_ms FROM provisional WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
@@ -85,6 +116,8 @@ def stage_result(store,token,data):
             idx=data.get('stageIndex')
             if p['status'] not in ('ready','active','awaiting_results') or type(idx) is not int or not 0<=idx<p['stage_index']:
                 raise Fault(409,'Stage is not ready for confirmation')
+            if recovery_state(store,p['id'])['recoveryRequired']:
+                raise Fault(409,'Settings recovery is required; no results will be accepted')
             reason=store._integrity_or_dnf(p,event,data.get('settings'))
             if reason:
                 store.db.execute('COMMIT');raise Fault(409,reason)
@@ -102,12 +135,13 @@ def stage_result(store,token,data):
             raise
 
 
-def checkpoint(store,token,data=None):
+def checkpoint(store,token,data=None,*,recovery=False):
     from server import Fault
     with store.lock:
         p=store._auth(token);_,ev=store.event(p['event_id'])
         idx=p['stage_index']
-        if p['status']!='ready' or not ev.get('allowBreaks',True) or not ev['stages'][idx].get('serviceBefore',False):
+        allowed=(p['status'] in ('registered','ready') and 0<=idx<len(ev['stages']) and ev.get('allowBreaks',True)) if recovery else (p['status']=='ready' and ev.get('allowBreaks',True) and ev['stages'][idx].get('serviceBefore',False))
+        if not allowed:
             raise Fault(409,'Resume is allowed only at a service before the next stage')
         count=store.db.execute('SELECT COUNT(*) FROM results WHERE player_id=? AND stage_index<?',(p['id'],idx)).fetchone()[0]
         if count!=idx:
@@ -116,6 +150,8 @@ def checkpoint(store,token,data=None):
             row=store.db.execute('SELECT * FROM rally_checkpoints WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
             if not row: return {'available':False}
             return {'available':True,**json.loads(row['payload']),'digest':row['digest'],'stageIndex':idx,'playerId':p['id'],'eventId':p['event_id']}
+        if recovery_state(store,p['id'])['recoveryRequired'] and not (recovery and p['status']=='registered' and idx==0):
+            raise Fault(409,'Settings recovery is required; the last valid copy is protected')
         if data.get('stageIndex')!=idx or compare_settings(ev,data.get('settings')): raise Fault(409,'Checkpoint settings or progress do not match the rally')
         packed=data.get('save');baseline=data.get('baseline')
         if not isinstance(packed,str) or len(packed)>MAX_PACKED*4//3+8 or not isinstance(baseline,dict) or len(json.dumps(baseline))>256000: raise Fault(413,'Checkpoint is too large')
@@ -135,7 +171,7 @@ def checkpoint(store,token,data=None):
 
 
 def purge_event_rows(store,ident):
-    for table in ('web_sessions','launch_tickets','launch_leases','rally_checkpoints','telemetry_penalties','provisional','results'):
+    for table in ('web_sessions','launch_tickets','launch_leases','rally_recovery','rally_checkpoints','telemetry_penalties','provisional','results'):
         store.db.execute('DELETE FROM '+table+' WHERE player_id IN (SELECT id FROM players WHERE event_id=?)',(ident,))
     store.db.execute('DELETE FROM players WHERE event_id=?',(ident,))
     store.db.execute('DELETE FROM season_events WHERE event_id=?',(ident,))

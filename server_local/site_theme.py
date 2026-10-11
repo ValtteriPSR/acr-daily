@@ -4,6 +4,8 @@ from html import escape
 from club_settings import brand_html, invite_html
 
 CSS = r"""
+.recovery-warning{color:#ffd166;background:#302a19;border:1px solid #ffd166;padding:14px;margin:12px 0}.status-warning{color:#ffd166!important;background:#302a19!important}
+
 :root{color-scheme:dark;--bg:#141d30;--surface:#111827;--surface2:#19243a;--line:#343b48;--text:#f2f5f8;--muted:#a4afbd;--accent:#ed4703;--accent2:#ed4703;--cyan:#87e3de;--green:#7be0b2;--radius:0px}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}

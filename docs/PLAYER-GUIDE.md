@@ -15,7 +15,7 @@ The download comes straight from the latest GitHub release asset. Whether the br
 
 If RUN cannot prepare the Rally Weekend save, first create any Rally Weekend in the game, launch an SS (you do not have to finish), exit the game and click RUN again. The launcher needs a compatible game-created save; it does not guess an unknown save structure.
 
-**After RUN, choose only your car. Do not change any Rally Weekend settings**, including stages, damage, starting position, weather or rules. A mismatch results in DNF. Avoid opening the weekend settings tab.
+**After RUN, choose only your car. Do not change any Rally Weekend settings**, including stages, damage, starting position, weather or rules. In a rally with breaks, a mismatch outside an active SS pauses the attempt and requires restoring with RUN. A mismatch during an active SS still means DNF. Avoid opening the weekend settings tab.
 
 ## Breaks and results
 
@@ -31,4 +31,10 @@ Dates use fixed UTC+2. If RUN opens nothing, rerun the installer and allow exter
 
 ## Private Rally Weekends between Club stages
 
-With launcher 0.2.6, wait for a confirmed server checkpoint after an allowed exit at service, then close the launcher. You can play an unrelated private weekend. Close ACR before RUN; the Club checkpoint takes priority and restores your progress, including damage, before the next SS. The current local save is backed up before replacement. Server restoration does not depend on your old local session file. Older rallies also upload checkpoints at service using the updated launcher; copies that were never uploaded cannot be recovered from stage times. First RUN can prepare a new Club calendar over a private in-progress weekend after backing up the full original save.
+With launcher 0.2.7, wait for a confirmed server checkpoint after an allowed exit at service, then close the launcher. You can play an unrelated private weekend. Close ACR before RUN; the Club checkpoint takes priority and restores your progress, including damage, before the next SS. The current local save is backed up before replacement. Server restoration does not depend on your old local session file. Older rallies also upload checkpoints at service using the updated launcher; copies that were never uploaded cannot be recovered from stage times. First RUN can prepare a new Club calendar over a private in-progress weekend after backing up the full original save.
+
+## Yellow settings warning (0.2.7)
+
+In a rally that allows continuation, changing the weekend settings before OS1 or between completed stages displays a yellow warning in the launcher and on the rally page. No new starts or times are accepted until recovery. Close the game and launcher, then click RUN. Before OS1 the canonical event settings are restored; after OS1 the latest confirmed personal Club copy restores the next stage, damage and accepted times including penalties. This does not grant a second attempt at an accepted stage.
+
+The launcher uploads a valid recovery copy while the game is open after the save contains correct progress and all completed stage results are confirmed. Wait for **KOPIA CLUB** before leaving the results screen to change any settings. If no valid copy was ever uploaded after OS1, progress cannot be reconstructed from times; contact the administrator. Normal private-game breaks still follow the event's service policy. Changes during an active stage and one-sitting restrictions remain DNF.

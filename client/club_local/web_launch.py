@@ -96,6 +96,7 @@ class WebLaunchWindow:
         self.text=scrolledtext.ScrolledText(root,background='#0c1822',foreground='#d7ecfa',
                                             height=15,font=('Consolas',10))
         self.text.pack(expand=True,fill='both',padx=18,pady=(0,16))
+        self.text.tag_configure('warning',foreground='#ffd166')
         self.text.configure(state='disabled')
         self.nav_notice=tk.StringVar(value='Przejdź samodzielnie: Racing → Rally → Rally Weekend → WYBIERZ SAMOCHÓD I NIE ZMIENIAJ ŻADNYCH USTAWIEŃ → START RALLY → opony → START STAGE.')
         tk.Label(root,textvariable=self.nav_notice,fg='#55e0ad',bg='#13212c',
@@ -125,7 +126,7 @@ class WebLaunchWindow:
                 kind,data=self.queue.get_nowait()
                 if kind=='log':
                     self.text.configure(state='normal')
-                    self.text.insert('end',time.strftime('%H:%M:%S')+'  '+data+'\n')
+                    self.text.insert('end',time.strftime('%H:%M:%S')+'  '+data+'\n',('warning',) if data.startswith(('OSTRZEŻENIE:','NIEZGODNOŚĆ')) else ())
                     self.text.see('end')
                     self.text.configure(state='disabled')
                 elif kind=='navigation':
@@ -169,7 +170,7 @@ class WebLaunchWindow:
             except (OSError,ValueError):
                 old={}
             restored=None
-            if state['status']=='ready':
+            if state['status']=='ready' or state.get('recoveryRequired'):
                 if not event.get('allowBreaks',True):
                     api.call('/api/integrity-violation',{'reason':'Próba wznowienia rajdu wymagającego jazdy na raz'})
                     raise RuntimeError('Rajd wymaga jazdy na raz; ponowne uruchomienie oznacza DNF')
@@ -191,7 +192,7 @@ class WebLaunchWindow:
                 for entry in rallyweekend.results(Path(saveslot.SAVE).read_bytes())[-10:]:
                     self.log('KATALOG: stageId='+entry['stage']+' | carId='+','.join(r['car'] for r in entry['runs']))
             except (OSError,ValueError,IndexError,TypeError): pass
-            if state['status']=='registered':
+            if state['status']=='registered' and restored is None:
                 self.log('Tworzę kopię bezpieczeństwa i przygotowuję Rally Weekend w Twoim zapisie...')
                 rallyclub.write_club_weekend(event,event['allowedCars'][0],{c['id']:c for c in catalog['cars']},replace_in_progress=True)
                 self.log('Kalendarz rajdu został zapisany; gra jest nadal zamknięta.')
@@ -203,6 +204,12 @@ class WebLaunchWindow:
             monitor.resume()
             if monitor.dead:
                 raise RuntimeError('Próba zablokowana przez serwer')
+            if state['status']=='registered' and event.get('allowBreaks',True):
+                monitor._capture_recovery_copy(time.monotonic())
+                if state.get('recoveryRequired') and restored is None:
+                    if not monitor.snapshot_digest:
+                        raise RuntimeError('Nie potwierdzono poprawnej kopii OS1 na serwerze. Podejście zachowane; ponów RUN.')
+                    api.call('/api/recovery-ack',{'digest':monitor.snapshot_digest,'settings':integrity.read_and_check(event)})
             self.monitor=monitor
             preparation_complete=True
             self.set_status(f'Nadzór aktywny · oczekuję na START OS {monitor.stage_index+1}')
@@ -232,7 +239,7 @@ class WebLaunchWindow:
             while self.running and not monitor.dead:
                 try:
                     monitor.poll()
-                    self.set_status(f'{monitor.status.upper()} · OS {min(monitor.stage_index+1,len(monitor.event["stages"]))}/{len(monitor.event["stages"])}')
+                    self.set_status('OSTRZEŻENIE · podejście zachowane. Zamknij grę i launcher, potem kliknij RUN.' if monitor.recovery_required else f'{monitor.status.upper()} · OS {min(monitor.stage_index+1,len(monitor.event["stages"]))}/{len(monitor.event["stages"])}')
                 except Exception as exc:
                     self.log('Błąd nadzoru: '+str(exc))
                     if monitor.status=='active':
@@ -247,6 +254,13 @@ class WebLaunchWindow:
             self.log('Koniec nadzoru: '+monitor.status)
 
     def close(self):
+        if self.monitor and self.monitor.recovery_required:
+            if not self.monitor.recovery_notified:
+                messagebox.showwarning('ACR Rally Club','Poczekaj na potwierdzenie ostrzeżenia na serwerze; sprawdź połączenie internetowe.')
+                return
+            self.running=False
+            self.root.destroy()
+            return
         if self.monitor and self.monitor.status=='active':
             if not messagebox.askyesno('ACR Rally Club',
                   'OS jest aktywny. Zamknięcie launchera oznacza DNF całego rajdu. Zamknąć?'):

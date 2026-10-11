@@ -24,6 +24,7 @@ acr.rallyweekend = ModuleType('acr_daily.rallyweekend')
 acr.saveslot = ModuleType('acr_daily.saveslot')
 acr.telemetry = ModuleType('acr_daily.telemetry')
 acr.names = ModuleType('acr_daily.names')
+acr.rallyweekend.progress = lambda b: None
 acr.rallyweekend.results = lambda b: json.loads(b.decode('utf-8'))
 acr.rallyclub.result_fingerprint = lambda e: (e['stage'], e['started'], tuple((r['car'],r['time'],r['penalty']) for r in e['runs']))
 acr.names.same_car = lambda reported, ch: str(reported).lower() in [str(ch.get('car','')).lower(), str(ch.get('carId','')).lower(), *(str(a).lower() for a in ch.get('carAliases',[]))]
@@ -58,9 +59,9 @@ class FakeApi:
         if endpoint=='/api/stage-result':
             import attempt_updates
             return attempt_updates.stage_result(self.store,self.token,data)
-        if endpoint=='/api/checkpoint':
+        if endpoint in ('/api/checkpoint','/api/recovery-checkpoint'):
             import attempt_updates
-            return attempt_updates.checkpoint(self.store,self.token,data)
+            return attempt_updates.checkpoint(self.store,self.token,data,recovery=endpoint=='/api/recovery-checkpoint')
         if endpoint=='/api/finalize':return self.store.finalize(self.token,data)
         if endpoint=='/api/dnf':return self.store.dnf(self.token,data['reason'])
         if endpoint=='/api/integrity-violation':return self.store.integrity_violation(self.token,data['reason'])
@@ -90,6 +91,8 @@ class MonitorTests(TestCase):
         self.integrity_patch=mock.patch.object(monitor.integrity,'read_and_check',
                     side_effect=lambda event:expected_settings(event))
         self.integrity_patch.start()
+        self.report_patch=mock.patch.object(monitor.integrity,'report_from_save',side_effect=lambda raw:expected_settings(self.ev))
+        self.report_patch.start()
         self.mon=monitor.AttemptMonitor(self.api,self.ev,'Driver',self.log.append,source=self.src)
         self.mon.resume()
         self.clock=[0.0]
@@ -100,6 +103,7 @@ class MonitorTests(TestCase):
         self.clock_patch.stop()
         self.catalog_patch.stop()
         self.integrity_patch.stop()
+        self.report_patch.stop()
         self.store.db.close()
         self.tmp.cleanup()
 
@@ -226,6 +230,34 @@ class MonitorTests(TestCase):
         self.assertTrue(self.mon.dead)
         import attempt_updates
         self.assertTrue(attempt_updates.checkpoint(self.store,self.token)['available'])
+
+    def test_idle_settings_change_warns_and_never_starts_or_uploads_results(self):
+        from club_local.integrity import IntegrityError
+        monitor.integrity.read_and_check.side_effect=IntegrityError('Changed stages in menu')
+        self.step(0,frame(0));self.step(2,frame(1000))
+        self.assertEqual(self.store.state(self.token)['status'],'registered')
+        self.assertTrue(self.store.state(self.token)['recoveryRequired'])
+        self.assertTrue(self.mon.recovery_required)
+        monitor.integrity.read_and_check.side_effect=lambda ev:expected_settings(ev)
+        self.step(4,frame(0));self.step(5,frame(500));self.mon.close()
+        self.assertEqual(self.store.state(self.token)['status'],'registered')
+        self.assertFalse(self.store.state(self.token)['results'])
+        self.assertTrue(any(line.startswith('OSTRZEŻENIE:') for line in self.log))
+
+    def test_valid_os1_copy_is_uploaded_before_menu_change_without_game_exit(self):
+        import attempt_updates
+        self.step(0,frame(0));self.step(.1,frame(500));self.step(.3,frame(203452));self.step(.8,frame(203452));self.step(2.3,frame(203452,5))
+        self.save.write_text(json.dumps([{'stage':self.ev['stages'][0]['stageId'],'started':time.time()-5,
+            'runs':[{'car':'VWPoloGTIR5','time':203.452,'penalty':34.0}]}]))
+        with mock.patch.object(monitor.rallyweekend,'progress',return_value={'done':1}):self.step(4,None)
+        copy=attempt_updates.checkpoint(self.store,self.token,recovery=True)
+        self.assertTrue(copy['available']);self.assertFalse(self.mon.dead)
+        from club_local.integrity import IntegrityError
+        monitor.integrity.read_and_check.side_effect=IntegrityError('Changed calendar')
+        self.step(6,None)
+        self.assertEqual(self.store.state(self.token)['status'],'ready')
+        self.assertEqual(self.store.state(self.token)['stage_index'],1)
+        self.assertEqual(attempt_updates.checkpoint(self.store,self.token,recovery=True)['digest'],copy['digest'])
 
 if __name__=='__main__':
     import unittest;unittest.main()

@@ -167,6 +167,10 @@ class AttemptMonitor:
         self._integrity_mismatch_since = None
         self._integrity_error_since = None
         self._integrity_last_message = None
+        self.recovery_required = False
+        self.recovery_notified = False
+        self.snapshot_digest = None
+        self.snapshot_try = -5.0
 
     def read_baseline(self):
         path = Path(saveslot.SAVE)
@@ -215,12 +219,49 @@ class AttemptMonitor:
         self.status = 'dnf'
         self.dead = True
 
+    def _request_recovery(self,reason):
+        self.recovery_required=True
+        if not self.recovery_notified:
+            self.emit('OSTRZEŻENIE: zmienione lub nieczytelne ustawienia Rally Weekend. Podejście zachowane; czasy nie będą wysyłane. Zamknij grę i launcher, następnie kliknij RUN na stronie, aby przywrócić ostatni poprawny zapis Club. '+str(reason))
+        try:
+            self.api.call('/api/integrity-violation',{'reason':str(reason)[:250]})
+            self.recovery_notified=True
+        except ApiError as exc:
+            self.emit('OSTRZEŻENIE: nie potwierdzono blokady na stronie; pozostaw launcher otwarty do odzyskania połączenia: '+str(exc))
+
+    def _capture_recovery_copy(self,now):
+        if self.recovery_required or not self.event.get('allowBreaks',True) or self.status not in ('registered','ready') or now-self.snapshot_try<5.0:
+            return
+        if any(idx not in self.confirmed_stages for idx in range(self.stage_index)):
+            return
+        try:
+            raw=Path(saveslot.SAVE).read_bytes()
+            from .integrity_rules import compare
+            report=integrity.report_from_save(raw)
+            if compare(self.event,report): return
+            progress=rallyweekend.progress(raw)
+            if self.stage_index and (not progress or progress.get('done')!=self.stage_index): return
+            digest=hashlib.sha256(raw).hexdigest()
+            if digest==self.snapshot_digest: return
+            self.snapshot_try=now
+            self.api.call('/api/recovery-checkpoint',{'save':base64.b64encode(gzip.compress(raw)).decode('ascii'),
+                'digest':digest,'baseline':self.baseline,'stageIndex':self.stage_index,'settings':report})
+            self.snapshot_digest=digest
+            self.emit(f'KOPIA CLUB: poprawny zapis przed OS {self.stage_index+1} potwierdzony na serwerze.')
+        except (ApiError,OSError,ValueError,IndexError,TypeError) as exc:
+            self.emit('Kopia poprawnego zapisu będzie ponowiona: '+str(exc))
+
     def _check_integrity(self, now, force=False):
         """Verify locally persisted rules; fail closed after confirmed differences.
 
         ACR may write .sav non-atomically or hold it locked during transitions.
         A single unreadable sample is not treated as deliberate cheating.
         """
+        if self.recovery_required:
+            if not self.recovery_notified and now-self._integrity_checked_at>=3.0:
+                self._integrity_checked_at=now
+                self._request_recovery(self._integrity_last_message or 'Nieprawidłowe ustawienia')
+            return False
         if not force and now-self._integrity_checked_at < 1.0:
             return self._integrity_report is not None
         self._integrity_checked_at = now
@@ -232,10 +273,15 @@ class AttemptMonitor:
             if msg!=self._integrity_last_message:
                 self.emit('NIEZGODNOŚĆ ustawień .sav: '+msg)
                 self._integrity_last_message=msg
+            if self.status in ('registered','ready') and self.event.get('allowBreaks',True):
+                self._request_recovery(msg)
+                return False
             if self._integrity_mismatch_since is None:
                 self._integrity_mismatch_since = now
             elif now - self._integrity_mismatch_since >= 1.0:
-                self._reject_integrity(msg)
+                if self.status in ('registered','ready') and self.event.get('allowBreaks',True):
+                    self._request_recovery(msg)
+                else: self._reject_integrity(msg)
             return False
         except (OSError, IndexError, ValueError, TypeError) as exc:
             self._integrity_report = None
@@ -243,7 +289,9 @@ class AttemptMonitor:
                 self._integrity_error_since=now
                 self.emit('Nie mogę odczytać ustawień .sav; wstrzymuję start: '+str(exc))
             elif now-self._integrity_error_since>=10.0:
-                self._reject_integrity('Brak możliwości weryfikacji ustawień przez ponad 10 s')
+                if self.status in ('registered','ready') and self.event.get('allowBreaks',True):
+                    self._request_recovery('Brak możliwości weryfikacji ustawień przez ponad 10 s')
+                else: self._reject_integrity('Brak możliwości weryfikacji ustawień przez ponad 10 s')
             return False
         self._integrity_report = report
         self._integrity_mismatch_since = None
@@ -326,6 +374,8 @@ class AttemptMonitor:
         self.last_seen_zero = False
         self.active_track = None
         self.checkpoint_sent = False
+        self.snapshot_digest=None
+        self.snapshot_try=-5.0
         self.freeze_since = None
         self.freeze_at = None
         self.freeze_moved = False
@@ -382,6 +432,14 @@ class AttemptMonitor:
             return
         try:
             content = Path(saveslot.SAVE).read_bytes()
+            from .integrity_rules import compare
+            report=integrity.report_from_save(content)
+            if compare(self.event,report):
+                if self.status in ('registered','ready') and self.event.get('allowBreaks',True):
+                    self._request_recovery('Zapis wyników ma inne ustawienia niż rajd')
+                else: self._reject_integrity('Zapis wyników ma inne ustawienia niż rajd')
+                return
+            self._integrity_report=report
             entries = new_results(content, self.baseline)
         except (OSError, IndexError, ValueError, TypeError):
             return
@@ -416,6 +474,7 @@ class AttemptMonitor:
             except ApiError as exc:
                 self.emit('Potwierdzenie OS-u będzie ponowione: '+str(exc))
                 return
+        self._capture_recovery_copy(now)
         if self.status!='awaiting_results' or len(ordered)!=len(self.event['stages']): return
         try:
             answer = self.api.call('/api/finalize', {'stages':ordered,'settings':self._integrity_report})
@@ -441,6 +500,8 @@ class AttemptMonitor:
         self._observe_live_penalty(f,now)
         if self.stage_index and self.status!='active':
             self._finalize_if_available(now)
+        elif self.status=='registered':
+            self._capture_recovery_copy(now)
         if self.status == 'awaiting_results' or self.dead:
             return
         if os.name=='nt' and now>=self.next_game_check:
@@ -549,6 +610,9 @@ class AttemptMonitor:
             self.emit('Nie zapisano kopii na serwerze; nie zamykaj launchera, ponawiam: '+str(exc))
 
     def close(self):
+        if self.recovery_required:
+            self.source.close()
+            return
         if self.status == 'active':
             self._server_dnf('Zamknięto klienta podczas OS-u')
         elif self.status=='ready':

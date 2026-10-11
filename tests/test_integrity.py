@@ -26,13 +26,14 @@ class IntegrityTests(unittest.TestCase):
         self.db.heartbeat(self.token,self.ev['id'],0,self.correct)
         self.db.stage_end(self.token,self.ev['id'],0,180000,self.correct)
         self.assertEqual(self.db.state(self.token)['status'],'ready')
-    def test_damage_disabled_causes_irreversible_dnf_at_start(self):
+    def test_damage_disabled_blocks_start_without_consuming_attempt(self):
         modified=expected_settings(self.ev)
         modified['rules']['damage']=0
         self.assertTrue(compare(self.ev,modified))
         with self.assertRaises(Fault):
             self.db.start(self.token,self.ev['id'],0,'VWPoloGTIR5',modified)
-        self.assertEqual(self.db.state(self.token)['status'],'dnf')
+        self.assertEqual(self.db.state(self.token)['status'],'registered')
+        self.assertTrue(self.db.state(self.token)['recoveryRequired'])
         with self.assertRaises(Fault):
             self.db.start(self.token,self.ev['id'],0,'VWPoloGTIR5',self.correct)
     def test_damage_change_during_stage_causes_dnf(self):
@@ -57,7 +58,7 @@ class IntegrityTests(unittest.TestCase):
     def test_missing_report_is_fail_closed(self):
         with self.assertRaises(Fault):
             self.db.start(self.token,self.ev['id'],0,'VWPoloGTIR5')
-        self.assertEqual(self.db.state(self.token)['status'],'dnf')
+        self.assertEqual(self.db.state(self.token)['status'],'registered')
     def test_stage_end_requires_integrity(self):
         self.db.start(self.token,self.ev['id'],0,'VWPoloGTIR5',self.correct)
         with self.assertRaises(Fault):
@@ -65,7 +66,7 @@ class IntegrityTests(unittest.TestCase):
         self.assertEqual(self.db.state(self.token)['status'],'dnf')
     def test_explicit_violation_while_registered(self):
         self.db.integrity_violation(self.token,'Wyłączone uszkodzenia')
-        self.assertEqual(self.db.state(self.token)['status'],'dnf')
+        self.assertEqual(self.db.state(self.token)['status'],'registered')
     def test_report_is_not_raw_save_hash(self):
         self.assertTrue(compare(self.ev,{'sha256':'deadbeef'}))
 

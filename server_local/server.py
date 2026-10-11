@@ -313,6 +313,7 @@ class Store:
                                       (player['id'],)).fetchall()
             d = {k: player[k] for k in ('nickname', 'status', 'stage_index', 'car_id', 'terminal_reason')}
             d.update({'event': config, 'results': [dict(e) for e in entries]})
+            d.update(attempt_updates.recovery_state(self,player['id']))
             return d
 
     def _integrity_or_dnf(self, player, event, settings):
@@ -320,6 +321,9 @@ class Store:
         problems = compare_settings(event, settings)
         if problems:
             reason = tr('Rally Weekend settings changed: ') + '; '.join(problems[:3])
+            if player['status'] in ('registered','ready') and event.get('allowBreaks',True):
+                attempt_updates.require_recovery(self,player,reason)
+                return reason
             self.db.execute("UPDATE players SET status='dnf',terminal_reason=?,started=NULL WHERE id=?",
                             (reason[:300], player['id']))
             return reason
@@ -334,6 +338,11 @@ class Store:
                 if p['status'] in ('completed','dnf'):
                     raise Fault(409, tr('The rally has already ended'))
                 msg = (tr('Rally Weekend settings mismatch: ') + str(reason))[:300]
+                _,event=self.event(p['event_id'])
+                if p['status'] in ('registered','ready') and event.get('allowBreaks',True):
+                    out=attempt_updates.require_recovery(self,p,msg)
+                    self.db.execute('COMMIT')
+                    return out
                 self.db.execute("UPDATE players SET status='dnf',terminal_reason=?,started=NULL WHERE id=?",
                                 (msg,p['id']))
                 self.db.execute('COMMIT')
@@ -358,6 +367,8 @@ class Store:
                     raise Fault(409, tr('The rally is not currently active'))
                 if p['status'] not in ('registered', 'ready') or p['stage_index'] != stage_index:
                     raise Fault(409, tr('Attempt already used or stage locked'))
+                if attempt_updates.recovery_state(self,p['id'])['recoveryRequired']:
+                    raise Fault(409,tr('Close the game and launcher, then click RUN to restore Club settings. Your attempt is preserved.'))
                 if stage_index < 0 or stage_index >= len(config['stages']):
                     raise Fault(400, tr('Invalid stage number'))
                 if car_id not in config['allowedCars']:
@@ -520,6 +531,7 @@ class Store:
             stage_results.sort(key=lambda r:(r['stage_index'],r['total_ms'],r['player_id']))
             players=[dict(p) for p in players]
             for p in players:
+                p.update(attempt_updates.recovery_state(self,p['id']))
                 rows=[r for r in stage_results if r['player_id']==p['id']]
                 p['live_total']=sum(r['total_ms'] for r in rows)
                 p['pending_stages']=sum(not r['verified'] for r in rows)
@@ -595,6 +607,11 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     finished=sum(p['status']=='completed' for p in data['players'])
     content=(tr('<div><a class="backlink" href="/">← All rallies</a></div><section class="hero"><span class="eyebrow">Rally Weekend / ')+escape(ev['location'])+'</span>'
              '<h1>'+escape(ev['name'])+'</h1><p>'+escape(ev['carClass'])+' · '+str(total_stages)+tr(' special stages</p><div class="stats"><div class="stat"><strong>')+str(total_stages)+tr('</strong><span>stages</span></div><div class="stat"><strong>')+str(len(data['players']))+tr('</strong><span>Participants</span></div><div class="stat"><strong>')+str(finished)+tr('</strong><span>Finished</span></div></div></section><div class="split"><section class="card"><span class="section-kicker">Round information</span><h2>Schedule</h2><p class="rally-meta"><strong>Opens:</strong> ')+escape(date_label(ev['opensAt']))+tr('</p><p class="rally-meta"><strong>Closes:</strong> ')+escape(date_label(ev['closesAt']))+tr('</p><p class="rally-meta"><strong>Location:</strong> ')+escape(ev['location'])+tr('</p><p class="rally-meta"><strong>Car class:</strong> ')+escape(ev['carClass'])+'</p>'+stage_schedule(ev)+'</section><div class="rally-side">')
+    content+='<div id="rally-recovery-warning">'
+    warned=[p for p in data['players'] if p.get('recoveryRequired')]
+    if warned:
+        content+='<div class="recovery-warning" role="status">'+escape(tr('Settings changed outside a stage. Your attempt is preserved. Close the game and launcher, then click RUN to restore your last valid Club save. No times are accepted until recovery.'))+'<br>'+escape(', '.join(p['nickname'] for p in warned))+'</div>'
+    content+='</div>'
     content+=tr('<section class="card"><span class="section-kicker">Driver area</span><h2>Your entry</h2>')
     if csrf:
         csrf_field='<input type="hidden" name="csrf" value="'+escape(csrf,quote=True)+'">'
@@ -633,6 +650,9 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     for i,p in enumerate(data['players'],1):
         label={'completed':tr('FINISH'),'dnf':'DNF','ready':tr('BETWEEN STAGES'),'active':tr('ON STAGE'),'registered':tr('REGISTERED'),'awaiting_results':tr('VERIFICATION')}.get(p['status'],p['status'])
         status_css='status-done' if p['status']=='completed' else 'status-dnf' if p['status']=='dnf' else ''
+        if p.get('recoveryRequired'):
+            label=tr('RESTORE WITH RUN')
+            status_css='status-warning'
         status_text=label+((' · '+str(p['terminal_reason'])[:100]) if p['status']=='dnf' and p.get('terminal_reason') else '')
         result=format_ms(p.get('live_total',p['total'])) if p['stage_index'] else '—'
         if p.get('pending_stages'): result+=' · '+tr('Provisional')
@@ -855,7 +875,7 @@ def make_handler(store, admin=None, catalog_root=None):
                 length = int(self.headers.get('Content-Length','0'))
             except ValueError:
                 raise Fault(400, tr('Invalid Content-Length'))
-            if not 0 < length <= (400000 if self.path == '/api/admin/branding' else 3500000 if self.path == '/api/checkpoint' else MAX_BODY):
+            if not 0 < length <= (400000 if self.path == '/api/admin/branding' else 3500000 if self.path in ('/api/checkpoint','/api/recovery-checkpoint') else MAX_BODY):
                 raise Fault(413, tr('Payload too large'))
             try:
                 body = json.loads(self.rfile.read(length))
@@ -1012,6 +1032,8 @@ def make_handler(store, admin=None, catalog_root=None):
                 if path == '/api/checkpoint':
                     self._client_version()
                     return self._write(200,attempt_updates.checkpoint(store,self._token()))
+                if path == '/api/recovery-checkpoint':
+                    return self._write(200,attempt_updates.checkpoint(store,self._token(),recovery=True))
                 if path == '/api/catalog':
                     return self._write(200,club_settings.catalog(store,catalog_root))
                 if path == '/api/admin/branding':
@@ -1228,8 +1250,8 @@ def make_handler(store, admin=None, catalog_root=None):
                     with store.lock:
                         actor=store._auth(self._token());_,ev=store.event(actor['event_id'])
                         v=self.headers.get('X-ACR-Launcher-Version','')
-                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,6)):
-                            raise Fault(426,'Install the latest 0.2.6 launcher from /download for this rally')
+                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,7)):
+                            raise Fault(426,'Install the latest 0.2.7 launcher from /download for this rally')
                     out = store.start(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('carId'), data.get('settings'))
                 elif path == '/api/heartbeat':
                     self._client_version()
@@ -1251,6 +1273,13 @@ def make_handler(store, admin=None, catalog_root=None):
                     self._client_version()
                     self._limit(path,12)
                     out = attempt_updates.checkpoint(store,self._token(),data)
+                elif path == '/api/recovery-checkpoint':
+                    self._client_version()
+                    self._limit(path,12)
+                    out=attempt_updates.checkpoint(store,self._token(),data,recovery=True)
+                elif path == '/api/recovery-ack':
+                    self._client_version()
+                    out=attempt_updates.recovery_ack(store,self._token(),data)
                 elif path == '/api/finalize':
                     self._client_version()
                     out = store.finalize(self._token(),data)
