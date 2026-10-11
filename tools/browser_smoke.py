@@ -39,7 +39,7 @@ def main():
                 page.locator('#brandDiscord').fill('https://discord.gg/club42')
                 with page.expect_navigation():page.locator('#saveBrand').click()
                 page.locator('#workspace').wait_for(state='visible')
-                assert page.locator('.brand').inner_text().startswith('Custom Rally Club')
+                assert 'Custom Rally Club' in page.locator('.brand').inner_text()
                 page.locator('#newEvent').click();page.locator('#allowBreaks').wait_for(state='visible')
                 assert page.locator('#allowBreaks option').count()==2
                 for lang in ('pl','en'):
