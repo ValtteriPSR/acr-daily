@@ -125,6 +125,12 @@ class UpdateHttpTests(unittest.TestCase):
         self.assertEqual(self.send('POST','/api/admin/branding',{'title':'Club'},{'X-ACR-Admin':'1'})[0],200)
         self.assertEqual(self.send('GET','/api/admin/branding',headers={'X-ACR-Admin':'1'})[1]['title'],'Club')
         self.assertEqual(self.send('GET','/api/catalog')[0],200)
+        launcher=self.send('GET','/launcher')[1]
+        self.assertNotIn('Automatyczna nawigacja',launcher)
+        self.assertNotIn('Python',launcher)
+        self.assertIn('Steam',launcher)
+        from driver_guide import page
+        self.assertNotIn('Nie klikaj w menu podczas automatycznej',page())
 
 
 if __name__=='__main__':unittest.main()

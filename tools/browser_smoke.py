@@ -53,7 +53,10 @@ def main():
                                 raise AssertionError((lang,width,path,'page overflow'))
                             assert page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(20, 29, 48)'"),(lang,width,path,'background')
                             assert page.locator('.discord-invite').get_attribute('href')=='https://discord.gg/club42'
-                            if path=='/launcher':assert 'Python' not in page.locator('main').inner_text() and '.bat' not in page.locator('main').inner_text()
+                            if path=='/launcher':
+                                text=page.locator('main').inner_text()
+                                assert 'Python' not in text and '.bat' not in text and 'Automatyczna nawigacja' not in text
+                                assert ('Steam' in text)
                             if path.startswith('/rally/'):
                                 assert page.locator('#rally-stage-results details[open]').count()==0
                         page.goto(origin+'/');assert page.locator('a[href$="/ACR-Rally-Club-Setup.exe"]').first.get_attribute('href').startswith('https://github.com/')

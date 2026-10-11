@@ -1,3 +1,4 @@
+# Release archives must include verified participant translations.
 name: Publish Windows launcher
 on:
   push:
