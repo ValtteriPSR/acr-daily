@@ -266,6 +266,8 @@ class Store:
             WHERE status='awaiting_results' AND last_seen < ?""", (now - 600,))
         self.db.execute("UPDATE players SET status='dnf',\n             terminal_reason='Client connection lost after stage start',\n             started=NULL WHERE status='active' AND last_seen < ?", (now - self.inactive,))
 
+        self.db.execute("DELETE FROM rally_checkpoints WHERE player_id IN (SELECT id FROM players WHERE status IN ('dnf','completed'))")
+
     def _auth(self, token):
         if not isinstance(token, str) or len(token) < 40:
             raise Fault(401, tr('Missing participant token'))

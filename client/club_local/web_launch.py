@@ -262,6 +262,13 @@ class WebLaunchWindow:
                   'OS jest aktywny. Zamknięcie launchera oznacza DNF całego rajdu. Zamknąć?'):
                 return
             self.monitor.close()
+        if self.monitor and self.monitor.status=='ready' and self.monitor.event.get('launcherProtocol')=='0.2.4':
+            if not self.monitor.event.get('allowBreaks',True):
+                if not messagebox.askyesno('ACR Rally Club','Ten rajd wymaga jazdy na raz. Zamknięcie launchera oznacza DNF. Zamknąć?'): return
+                self.monitor.close()
+            elif not self.monitor.checkpoint_sent:
+                messagebox.showwarning('ACR Rally Club','Najpierw wyjdź z gry na dozwolonym serwisie i poczekaj na komunikat PRZERWA: kopia zapisu przesłana na serwer. Nie zamykaj launchera przed potwierdzeniem kopii.')
+                return
         self.running=False
         self.root.destroy()
 
