@@ -5,6 +5,10 @@ No participant token is embedded in a web URL.
 """
 from __future__ import annotations
 import json
+import base64
+import gzip
+import hashlib
+import io
 import os
 from pathlib import Path
 import queue
@@ -96,8 +100,8 @@ class WebLaunchWindow:
                                             height=15,font=('Consolas',10))
         self.text.pack(expand=True,fill='both',padx=18,pady=(0,16))
         self.text.configure(state='disabled')
-        self.nav_notice=tk.StringVar(value='Sterowanie ręczne: w ACR wybierz Racing → Rally → Rally Weekend → START RALLY, następnie START STAGE.')
-        tk.Label(root,textvariable=self.nav_notice,fg='#d6dce7',bg='#13212c',
+        self.nav_notice=tk.StringVar(value='Przejdź samodzielnie: Racing → Rally → Rally Weekend → WYBIERZ SAMOCHÓD I NIE ZMIENIAJ ŻADNYCH USTAWIEŃ → START RALLY → opony → START STAGE.')
+        tk.Label(root,textvariable=self.nav_notice,fg='#55e0ad',bg='#13212c',
                  wraplength=650,justify='left').pack(anchor='w',padx=18,pady=(0,8))
         root.protocol('WM_DELETE_WINDOW',self.close)
         self.log('Wersja launchera: '+VERSION+' · nawigacja w menu ACR: RĘCZNA')
@@ -151,6 +155,12 @@ class WebLaunchWindow:
             player_id=launch['playerId']
             api.token=token
             self.log(f'RUN potwierdzony: {nickname} · {event["name"]} · {len(event["stages"])} OS')
+            catalog=api.call('/api/catalog') if event.get('launcherProtocol')=='0.2.4' else None
+            try:
+                from acr_daily import rallyweekend
+                for entry in rallyweekend.results(Path(saveslot.SAVE).read_bytes())[-10:]:
+                    self.log('KATALOG: stageId='+entry['stage']+' | carId='+','.join(r['car'] for r in entry['runs']))
+            except (OSError,ValueError,IndexError,TypeError): pass
             state=api.call('/api/me')
             if state['status'] not in ('registered','ready'):
                 raise RuntimeError('Rajd nie może być wznowiony: '+state['status'])
@@ -161,6 +171,28 @@ class WebLaunchWindow:
                 old=json.loads(SESSION.read_text(encoding='utf-8'))
             except (OSError,ValueError):
                 old={}
+            checkpoint=None
+            if state['status']=='ready':
+                if not event.get('allowBreaks',True):
+                    api.call('/api/integrity-violation',{'reason':'Próba wznowienia rajdu wymagającego jazdy na raz'})
+                    raise RuntimeError('Rajd wymaga jazdy na raz; ponowne uruchomienie oznacza DNF')
+                if event.get('launcherProtocol')=='0.2.4':
+                    checkpoint=api.call('/api/checkpoint')
+                    if checkpoint.get('available'):
+                        compressed=base64.b64decode(checkpoint['save'],validate=True)
+                        with gzip.GzipFile(fileobj=io.BytesIO(compressed)) as f: raw=f.read(4*1024*1024+1)
+                        if len(raw)>4*1024*1024 or hashlib.sha256(raw).hexdigest()!=checkpoint['digest']:
+                            raise RuntimeError('Nieprawidłowa kopia zapisu; wstrzymuję wznowienie')
+                        # Verify the restored save against this exact event before replacement.
+                        from acr_daily import rallyweekend
+                        from .integrity_rules import compare
+                        report=integrity.report_from_save(raw)
+                        if compare(event,report): raise RuntimeError('Kopia zapisu ma inne ustawienia rajdu')
+                        saveslot.replace(raw)
+                        old={'eventId':event['id'],'playerId':player_id,'baseline':checkpoint['baseline']}
+                        self.log('Przywrócono kopię konkretnego gracza z serwera; kontynuuj kolejny OS')
+                    else:
+                        self.log('Brak kopii na serwerze; sprawdzam lokalny zapis i bazę poprzedniej sesji')
             same=(old.get('eventId')==event['id'] and old.get('playerId')==player_id)
             if state['status']=='ready' and (not same or old.get('baseline') is None):
                 raise RuntimeError('Brak zapisanej bazy wyników poprzedniego OS-u na tym komputerze. '
@@ -173,7 +205,7 @@ class WebLaunchWindow:
             SESSION.write_text(json.dumps(session,ensure_ascii=False,indent=2),encoding='utf-8')
             if state['status']=='registered':
                 self.log('Tworzę kopię bezpieczeństwa i przygotowuję Rally Weekend w Twoim zapisie...')
-                rallyclub.write_club_weekend(event,event['allowedCars'][0])
+                rallyclub.write_club_weekend(event,event['allowedCars'][0],{c['id']:c for c in catalog['cars']} if catalog else None)
                 self.log('Kalendarz rajdu został zapisany; gra jest nadal zamknięta.')
             else:
                 self.log('Wznawiam przed kolejnym OS-em, bez podmiany aktywnego zapisu gry.')
@@ -189,7 +221,7 @@ class WebLaunchWindow:
             if os.name=='nt':
                 os.startfile('steam://rungameid/3917090')
                 self.log('ACR uruchomione przez Steam. Nie zamykaj launchera podczas jazdy.')
-                self.log('Przejdź samodzielnie: Racing → Rally → Rally Weekend → START RALLY → opony → START STAGE.')
+                self.log('Przejdź samodzielnie: Racing → Rally → Rally Weekend → WYBIERZ SAMOCHÓD I NIE ZMIENIAJ ŻADNYCH USTAWIEŃ → START RALLY → opony → START STAGE.')
             else:
                 self.log('Symulacja poza Windows: nie uruchamiam Steam')
             self.watch(monitor)
@@ -201,6 +233,8 @@ class WebLaunchWindow:
                 except Exception as cleanup:
                     self.log('Nie udało się odblokować biletu RUN: '+str(cleanup))
             self.log('BŁĄD: '+str(exc))
+            if not preparation_complete and ('sav' in str(exc).lower() or isinstance(exc,(FileNotFoundError,integrity.IntegrityError))):
+                self.log('Jeśli brakuje poprawnego pliku Rally Weekend: ustaw w grze dowolny Rally Weekend, uruchom OS (nie musisz kończyć), wyjdź z gry i kliknij ponownie RUN na stronie. Nie zmieniaj ustawień rajdu po RUN.')
             self.set_status('Błąd uruchamiania · sprawdź szczegóły w dzienniku')
 
     def watch(self, monitor):

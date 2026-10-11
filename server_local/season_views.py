@@ -20,11 +20,16 @@ def _chip(txt,extra=''):
 def season_list(seasons):
     page=(tr('<section class="hero"><span class="eyebrow">Rally championship / Seasons</span><h1>Results and standings</h1><p>Overall standings, divisions, teams and points for every round. Choose a season and follow the results.</p><div class="stats"><div class="stat"><strong>')+str(len(seasons))+tr('</strong><span>Seasons</span></div><div class="stat"><strong>')+str(sum(s['rallyCount'] for s in seasons))+tr('</strong><span>Rallies in the calendar</span></div></div></section>'))
     page+=tr('<div class="card-head"><div><span class="section-kicker">Season history</span><h2>Club seasons</h2></div></div><div class="grid-cards">')
+    archived=[]
+    now=datetime.now(timezone.utc).timestamp()
     for s in seasons:
-        page+=('<article class="rally-card">'+_chip(tr('Season'))+'<h2><a href="/season/'+e(s['id'],quote=True)+'">'+e(s['name'])+'</a></h2>'
+        card=('<article class="rally-card">'+_chip(tr('Season'))+'<h2><a href="/season/'+e(s['id'],quote=True)+'">'+e(s['name'])+'</a></h2>'
                '<p>'+e(_date_plus_two(s['opensAt']))+' — '+e(_date_plus_two(s['closesAt']))+'</p>'
                '<div class="rally-foot"><small>'+str(s['rallyCount'])+tr(' rallies</small><a class="btn-link" href="/season/')+e(s['id'],quote=True)+tr('">View standings →</a></div></article>'))
+        if datetime.fromisoformat(s['closesAt'].replace('Z','+00:00')).timestamp()<now: archived.append(card)
+        else: page+=card
     page+='</div>'
+    if archived: page+='<details class="round archive"><summary>'+e(tr('Past seasons'))+' · '+str(len(archived))+'</summary><div class="grid-cards">'+''.join(archived)+'</div></details>'
     if not seasons:page+=tr('<div class="empty">The organizer has not added any seasons yet.</div>')
     return shell(tr('ACR Rally Club — Results and standings'),page,active='seasons')
 
@@ -68,7 +73,7 @@ def season_detail(data):
     page+=tr('<p class="muted">Points are finalized after the rally closes; positions are provisional until then.</p>')
     for ix,rally in enumerate(rallies,1):
         closed=rally['closed']
-        page+='<details class="round"'+(' open' if ix==1 else '')+'><summary><span>R'+f'{ix:02d}'+' · '+e(rally['name'])+'</span>'+_chip(tr('POINTS FINALIZED') if closed else tr('PROVISIONAL'),'chip-active' if closed else 'chip-upcoming')+'</summary>'
+        page+='<details class="round"'+''+'><summary><span>R'+f'{ix:02d}'+' · '+e(rally['name'])+'</span>'+_chip(tr('POINTS FINALIZED') if closed else tr('PROVISIONAL'),'chip-active' if closed else 'chip-upcoming')+'</summary>'
         page+='<p><a href="/rally/'+e(rally['id'],quote=True)+tr('">Open stage and rally results →</a></p>')
         page+=tr('<div class="table-scroll"><table><thead><tr><th>Position</th><th>Driver</th><th>Time</th><th>Overall pts.</th><th>Division position</th><th>Division pts.</th><th>PS position</th><th>PS pts.</th></tr></thead><tbody>')
         for entry in rally['results']:

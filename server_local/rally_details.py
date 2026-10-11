@@ -18,7 +18,8 @@ LEVEL_LABELS = {'off': 'Off', 'light': 'Light', 'severe': 'Severe', 'realistic':
 
 
 def stage_schedule(event):
-    names = {stage['id']: stage['name'] for stage in load_catalog()['stages']}
+    from club_settings import branding
+    names = {stage['id']: stage['name'] for stage in (branding().get('catalog') or load_catalog())['stages']}
     settings = expected_settings(event)
     rows = []
     for index, (stage, actual) in enumerate(zip(event['stages'], settings['stages']), 1):
@@ -56,6 +57,7 @@ def rally_conditions(event):
         ('Road wetness', tr('By stage weather')),
         ('Starting snow cover', f"{actual['stages'][0]['snow']:.0%}"),
         ('Time progression', tr('Fixed')),
+        ('Breaks', tr('Exit only at service; resume from backup') if event.get('allowBreaks',True) else tr('One sitting; do not close the game')),
     ]
     return ('<section class="card rally-conditions"><span class="section-kicker">Rally Weekend</span><h2>'
             + escape(tr('Conditions')) + '</h2><dl class="conditions-grid">'

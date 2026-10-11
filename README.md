@@ -1,4 +1,4 @@
-# ACR Rally Club 0.2.3
+# ACR Rally Club 0.2.4
 
 A web-based rally club for Assetto Corsa Rally, based on
 [ACR Daily](https://github.com/khanhonthetrack/acr-daily). Manage rallies,
@@ -6,11 +6,13 @@ championships, divisions and teams in a browser. Players use a Windows launcher
 to prepare Rally Weekend, read telemetry and submit official results.
 
 **[Open the club](https://acr-rally-club.onrender.com/)** ·
-**[Download the Windows installer](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.3)**
+**[Download the Windows installer](https://github.com/ValtteriPSR/acr-daily/releases/latest/download/ACR-Rally-Club-Setup.exe)**
 
 Rally pages show each special stage in order, with weather, in-game start time
 and service before the stage. A compact **Conditions** section shows the actual
 Rally Weekend rules and fixed launcher settings.
+
+Administrators can customize the club logo, titles and public Discord invite, edit the car/stage catalog and permanently delete rallies or seasons. Past events are collapsed in an archive. Results update after each stage; telemetry remains provisional until confirmed by the game save. Rally rules can allow breaks at service with private server save backups, or require one sitting.
 
 The website supports Polish and English. Use **PL / EN** in the navigation bar;
 the browser remembers your choice. Rally names, nicknames and team names remain

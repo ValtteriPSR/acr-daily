@@ -1,4 +1,4 @@
-# Move ACR Rally Club 0.2.3 to your hosting
+# Move ACR Rally Club 0.2.4 to your hosting
 
 All server components can run on another provider. Players and administrators
 still use a website; no server software runs on their personal computers.
@@ -36,10 +36,10 @@ Clone the public application branch:
 ```sh
 git clone --branch rally-club --single-branch https://github.com/ValtteriPSR/acr-daily.git
 cd acr-daily
-docker build -t acr-rally-club:0.2.3 -f deploy/Dockerfile .
+docker build -t acr-rally-club:0.2.4 -f deploy/Dockerfile .
 ```
 
-Alternatively, extract `ACR-Rally-Club-0.2.3-Source.zip` from the GitHub release
+Alternatively, extract `ACR-Rally-Club-0.2.4-Source.zip` from the GitHub release
 and run the last command from its root directory.
 
 Generate settings. Replace the domain and installer URL with your own values:
@@ -47,9 +47,9 @@ Generate settings. Replace the domain and installer URL with your own values:
 ```sh
 docker run --rm -it --user "$(id -u):$(id -g)" \
   --mount type=bind,source="$PWD/deploy",target=/configuration \
-  acr-rally-club:0.2.3 python deploy/configure_hosting.py \
+  acr-rally-club:0.2.4 python deploy/configure_hosting.py \
   --domain league.example.com \
-  --download-url https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.3-custom-domain \
+  --download-url https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.4-custom-domain \
   --postgres --output /configuration/.env
 ```
 
@@ -128,7 +128,7 @@ DNS does not rewrite that address inside an installed client.
 1. In GitHub, open **Actions → Publish Windows launcher → Run workflow**.
 2. Select branch `rally-club`.
 3. Set `public_url` to `https://league.example.com`, with no path.
-4. Use a new tag, for example `v0.2.3-custom-domain`; never overwrite an old release.
+4. Use a new tag, for example `v0.2.4-custom-domain`; never overwrite an old release.
 5. Wait for the tests, Windows build and frozen import self-test to pass.
 6. Set the new server's download URL to that repository's release URL. The server resolves it to `releases/latest/download/ACR-Rally-Club-Setup.exe`; ensure that repository's latest release is built for the new public origin. Use a separate fork if you operate two domains simultaneously.
 7. Ask players to install it. Installation updates both the protocol handler and
@@ -184,3 +184,9 @@ References: [Docker Compose environment interpolation](https://docs.docker.com/c
 and [Caddy basic authentication](https://caddyserver.com/docs/caddyfile/directives/basic_auth).
 
 Discord settings and delivery state are stored in PostgreSQL and migrate with the database. Allow outbound HTTPS to `discord.com`. The notifier runs inside the server process; on sleeping free hosting, scheduled summaries wait until the process wakes. See [Discord setup](DISCORD.md).
+
+## Portable persistent content (0.2.4)
+
+Branding, logo, custom catalogs and private rally checkpoints are in the same SQLite/PostgreSQL database as club results. Preserve the database when moving hosts; no upload directory or provider-specific object storage is needed. The server runs as one application process with threads. It can run directly with Python 3.13 behind the provided reverse proxy when containers are unavailable; the host must support a persistent Python process and outbound PostgreSQL/Steam/Discord connections. Static-only or PHP-only hosting needs a separate backend.
+
+Keep TLS, gateway authentication and the private admin route. The largest participant checkpoint request is bounded at 3.5 MB; reverse proxies must permit that size. The downloaded launcher remains a direct GitHub release asset. Rebuild it for a changed public club origin as described above. Run `tools/preflight.py --server --distribution`, schema tests and a complete real-game test after migration.

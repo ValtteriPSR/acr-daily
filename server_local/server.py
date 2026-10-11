@@ -8,6 +8,10 @@ from i18n import tr
 from i18n import (request_localized, localize_document, language, language_cookie,
                   safe_return_path, SUPPORTED_LANGUAGES)
 import argparse
+import base64
+import math
+import club_settings
+import attempt_updates
 import sys
 # When launched with python server_local/server.py, ensure helper modules importing
 # `server.Fault` see the same class as the running __main__ HTTP handler.
@@ -68,6 +72,8 @@ def validate_event(event):
         raise ValueError('Event must be JSON object')
     if not re.fullmatch(r'[a-z0-9][a-z0-9-]{2,63}', str(event.get('id', ''))):
         raise ValueError('Invalid rally ID')
+    if 'allowBreaks' in event and type(event['allowBreaks']) is not bool:
+        raise ValueError('allowBreaks must be a boolean')
     if not 3 <= len(str(event.get('name', '')).strip()) <= 120:
         raise ValueError('Invalid rally name')
     stages = event.get('stages')
@@ -149,6 +155,8 @@ class Store:
           acr_started REAL NOT NULL, finished REAL NOT NULL,
           PRIMARY KEY(player_id,stage_index));
         """)
+        club_settings.install(self)
+        attempt_updates.install(self)
         install_tables(self)
         install_seasons(self)
         discord_notifications.install(self)
@@ -225,15 +233,16 @@ class Store:
                 if self.db.in_transaction: self.db.execute('ROLLBACK')
                 raise
 
-    def delete_event(self, ident):
+    def delete_event(self, ident, confirm=None):
         with self.lock:
             self._begin()
             try:
                 self.event(ident)
                 used = self.db.execute('SELECT COUNT(*) FROM players WHERE event_id=?', (ident,)).fetchone()[0]
-                if used:
-                    raise Fault(409, tr('Cannot delete a rally with participants'))
-                self.db.execute('DELETE FROM events WHERE id=?', (ident,))
+                if confirm is not None and confirm!=ident: raise Fault(400,'Type the rally ID to confirm permanent deletion')
+                if used and confirm!=ident:
+                    raise Fault(409,tr('Cannot delete a rally with participants'))
+                attempt_updates.purge_event_rows(self,ident)
                 self.db.execute('COMMIT')
                 return {'ok': True, 'id': ident}
             except Exception:
@@ -452,12 +461,13 @@ class Store:
                     if not isinstance(record, dict) or record.get('stageIndex') != idx or \
                             record.get('stageId') != stage['stageId'] or record.get('carId') != p['car_id']:
                         raise Fault(409, tr('Wrong stage or car in the official result'))
+                    attempt_updates.validate_record(self,p,event,record,idx,prev_started)
                     raw, pen, total = (record.get(k) for k in ('rawMs','penaltyMs','totalMs'))
                     if any(type(x) is not int for x in (raw,pen,total)) or not 10000 <= raw <= 14400000 or \
                             not 0 <= pen <= 3600000 or raw + pen != total:
                         raise Fault(400, tr('Invalid time or penalty'))
                     acr_started = record.get('acrStarted')
-                    if not isinstance(acr_started, (float,int)) or \
+                    if type(acr_started) not in (float,int) or not math.isfinite(acr_started) or \
                             not p['created'] - 60 <= acr_started <= now + 60 or \
                             acr_started <= prev_started:
                         raise Fault(409, tr('Invalid attempt start time in the ACR file'))
@@ -465,12 +475,17 @@ class Store:
                     # can occur with timing glitches and need manual review rather than fake score.
                     if abs(raw - started['clock_ms']) > 5000:
                         raise Fault(409, tr('Official timer differs from telemetry by more than 5 seconds'))
-                    self.db.execute('''INSERT INTO results(player_id,stage_index,stage_id,car_id,
-                      raw_ms,penalty_ms,total_ms,acr_started,finished)
-                      VALUES(?,?,?,?,?,?,?,?,?)''',
-                      (p['id'], idx, stage['stageId'], p['car_id'], raw, pen, total, acr_started, now))
+                    previous = self.db.execute('SELECT * FROM results WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
+                    if previous and not attempt_updates.match_existing(previous,record):
+                        raise Fault(409,'An accepted stage result is immutable')
+                    if not previous:
+                        self.db.execute('''INSERT INTO results(player_id,stage_index,stage_id,car_id,
+                          raw_ms,penalty_ms,total_ms,acr_started,finished)
+                          VALUES(?,?,?,?,?,?,?,?,?)''',
+                          (p['id'], idx, stage['stageId'], p['car_id'], raw, pen, total, acr_started, now))
                     prev_started = acr_started
                 self.db.execute("UPDATE players SET status='completed',last_seen=? WHERE id=?", (now,p['id']))
+                self.db.execute('DELETE FROM rally_checkpoints WHERE player_id=?',(p['id'],))
                 self.db.execute('COMMIT')
                 return {'ok':True,'status':'completed'}
             except Exception:
@@ -490,6 +505,14 @@ class Store:
                    r.stage_id,r.raw_ms,r.penalty_ms,r.total_ms,p.nickname
                    FROM results r JOIN players p ON p.id=r.player_id
                    WHERE p.event_id=? ORDER BY r.stage_index,r.total_ms,r.player_id''',(event_id,))]
+            for r in stage_results: r['verified']=True
+            pending=[dict(r) for r in self.db.execute('''SELECT v.player_id,v.stage_index,v.clock_ms AS raw_ms,
+              v.clock_ms AS total_ms,p.nickname FROM provisional v JOIN players p ON p.id=v.player_id
+              WHERE p.event_id=? AND NOT EXISTS (SELECT 1 FROM results r WHERE r.player_id=v.player_id AND r.stage_index=v.stage_index)''',(event_id,))]
+            for r in pending:
+                r.update(stage_id=event['stages'][r['stage_index']]['stageId'],penalty_ms=None,verified=False)
+            stage_results.extend(pending)
+            stage_results.sort(key=lambda r:(r['stage_index'],r['total_ms'],r['player_id']))
             return {'event': event, 'players': [dict(p) for p in sorted(players,
                     key=lambda p:(p['status'] != 'completed', -p['completed_stages'], p['total'], p['nickname'].lower()))],
                     'stageResults':stage_results}
@@ -530,22 +553,29 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
         upcoming=sum(utc_epoch(ev['opensAt'])>now for ev in evs)
         active=sum(utc_epoch(ev['opensAt'])<=now<=utc_epoch(ev['closesAt']) for ev in evs)
         content=(tr('<section class="hero"><span class="eyebrow">Assetto Corsa Rally · Club competition</span><h1>Rallies and events</h1><p>Choose a rally, read the rules and start with one click. Stages, standings and club results in one place.</p><p><a class="btn-link" href="/download">⬇ DOWNLOAD WINDOWS LAUNCHER</a>\u3000<a class="btn-link" href="/guide">Getting started →</a></p><div class="stats"><div class="stat"><strong>')+str(len(evs))+tr('</strong><span>Rallies</span></div><div class="stat"><strong>')+str(active)+tr('</strong><span>Live</span></div><div class="stat"><strong>')+str(upcoming)+tr('</strong><span>Scheduled</span></div></div></section>'))
+        tagline=club_settings.branding()['tagline']
+        if tagline:
+            content=re.sub(r'(<span class="eyebrow">).*?(</span>)',lambda m:m[1]+escape(tagline)+m[2],content,count=1)
         if member:
             content+=(tr('<section class="card"><span class="section-kicker">Your profile</span>Welcome, <strong>')+escape(member['nickname'])+
                       tr('</strong>. <a href="/club">View club account →</a></section>'))
         content+=(tr('<div class="card-head"><div><span class="section-kicker">Calendar</span><h2>Available rallies</h2></div><a class="btn-link" href="/seasons">Season standings →</a></div>'))
         content+='<div class="grid-cards">'
+        archived=[]
         for ev in evs:
             eid=escape(ev['id'],quote=True)
             opening,closing=utc_epoch(ev['opensAt']),utc_epoch(ev['closesAt'])
             label,cl=(tr('LIVE'),'chip-active') if opening<=now<=closing else ((tr('COMING SOON'),'chip-upcoming') if now<opening else (tr('FINISHED'),'chip-ended'))
-            content+=('<article class="rally-card"><div class="hero-inline">'+pill(label,cl)+
+            card=('<article class="rally-card"><div class="hero-inline">'+pill(label,cl)+
                       '<span class="muted">'+escape(ev['location'])+'</span></div>'
                       '<h2><a href="/rally/'+eid+'">'+escape(ev['name'])+'</a></h2>'
                       '<p>'+str(len(ev['stages']))+tr(' special stages · ')+escape(ev['carClass'])+'</p>'
                       '<div class="rally-foot"><small>'+escape(date_label(ev['opensAt']))+'</small>'
                       '<a class="btn-link" href="/rally/'+eid+tr('">View rally →</a></div></article>'))
+            if closing<now: archived.append(card)
+            else: content+=card
         content+='</div>'
+        if archived: content+='<details class="round archive"><summary>'+escape(tr('Past rallies'))+' · '+str(len(archived))+'</summary><div class="grid-cards">'+''.join(archived)+'</div></details>'
         if not evs:content+=tr('<div class="empty">No rallies yet. The organizer will add them in the administrator panel.</div>')
         return shell(tr('ACR Rally Club — Rallies'),content,active='rallies')
 
@@ -587,7 +617,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
             else:
                 content+=tr('<p class="muted">RUN is locked — the attempt is in progress or has ended.</p>')
     content+='</section>'+rally_conditions(ev)+'</div></div>'
-    content+=tr('<section class="card"><div class="card-head"><div><span class="section-kicker">Rally standings</span><h2>Overall results</h2></div>')+pill(str(len(data['players']))+tr(' drivers'))+'</div>'
+    content+=tr('<section class="card"><div class="card-head"><div><span class="section-kicker">Rally standings</span><h2>Overall results</h2></div>').replace('<section class="card">','<section class="card" id="rally-classification">',1)+pill(str(len(data['players']))+tr(' drivers'))+'</div>'
     content+=(tr('<div class="toolbar"><label for="driver-search">Search drivers</label><input type="search" id="driver-search" placeholder="Enter a driver nickname…" autocomplete="off"></div>'))
     content+=(tr('<div class="table-scroll"><table><thead><tr><th>Position</th><th>Driver</th><th>Car</th><th>SS</th><th>Total time</th><th>Status</th></tr></thead><tbody>'))
     for i,p in enumerate(data['players'],1):
@@ -601,22 +631,22 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     content+='</tbody></table></div>'
     if not data['players']:content+=tr('<div class="empty">No drivers have registered yet.</div>')
     content+=tr('<p class="table-meta">Only drivers with FINISH status count toward the final standings. DNF prevents another attempt.</p></section>')
-    content+=tr('<section class="card"><span class="section-kicker">Detailed results</span><h2>Individual stage results</h2>')
+    content+=tr('<section class="card"><span class="section-kicker">Detailed results</span><h2>Individual stage results</h2>').replace('<section class="card">','<section class="card" id="rally-stage-results">',1)
     for index,stage in enumerate(ev['stages']):
         stage_rows=[r for r in data['stageResults'] if r['stage_index']==index]
-        content+='<details class="round"'+(' open' if index==0 else '')+tr('><summary><span>SS ')+str(index+1)+' · '+escape(stage['stageId'])+'</span>'+pill(str(len(stage_rows))+tr(' results'))+'</summary>'
+        content+='<details class="round"'+''+tr('><summary><span>SS ')+str(index+1)+' · '+escape(stage['stageId'])+'</span>'+pill(str(len(stage_rows))+tr(' results'))+'</summary>'
         content+=tr('<div class="table-scroll"><table><thead><tr><th>#</th><th>Driver</th><th>RAW</th><th>Penalties</th><th>Official time</th></tr></thead><tbody>')
         for place,r in enumerate(stage_rows,1):
             content+=('<tr><td class="rank-col">'+str(place)+'</td><td>'+escape(r['nickname'])+'</td>'
                     '<td class="mono">'+format_ms(r['raw_ms'])+'</td>'
-                    '<td class="mono bad">+'+format_ms(r['penalty_ms'])+'</td>'
-                    '<td class="mono"><strong>'+format_ms(r['total_ms'])+'</strong></td></tr>')
+                    '<td class="mono bad">'+('+'+format_ms(r['penalty_ms']) if r['penalty_ms'] is not None else '—')+'</td>'
+                    '<td class="mono"><strong>'+format_ms(r['total_ms'])+'</strong>'+('' if r.get('verified',True) else '<small class="muted"> '+escape(tr('Telemetry · pending save confirmation'))+'</small>')+'</td></tr>')
         content+='</tbody></table></div>'
-        if not stage_rows:content+=tr('<div class="empty">Results will appear after the complete rally has been verified.</div>')
+        if not stage_rows:content+=tr('<div class="empty">Results appear after every stage; telemetry times await save confirmation.</div>')
         content+='</details>'
     content+='</section>'
     from site_theme import RALLY_FILTER_JS
-    return shell('ACR Rally Club — '+ev['name'],content,active='rallies',scripts=RALLY_FILTER_JS)
+    return shell('ACR Rally Club — '+ev['name'],content,active='rallies',scripts=RALLY_FILTER_JS+__import__('live_results').SCRIPT)
 
 
 def _is_loopback_hostname(hostname):
@@ -814,7 +844,7 @@ def make_handler(store, admin=None, catalog_root=None):
                 length = int(self.headers.get('Content-Length','0'))
             except ValueError:
                 raise Fault(400, tr('Invalid Content-Length'))
-            if not 0 < length <= MAX_BODY:
+            if not 0 < length <= (400000 if self.path == '/api/admin/branding' else 3500000 if self.path == '/api/checkpoint' else MAX_BODY):
                 raise Fault(413, tr('Payload too large'))
             try:
                 body = json.loads(self.rfile.read(length))
@@ -872,6 +902,7 @@ def make_handler(store, admin=None, catalog_root=None):
                 raise Fault(415, tr('application/json is required'))
 
         @request_localized
+        @club_settings.context(store)
         def do_GET(self):
             try:
                 self._gateway_guard()
@@ -956,10 +987,29 @@ def make_handler(store, admin=None, catalog_root=None):
                     self._require_admin_local()
                     return self._write(200, private_admin_page(admin_html(), secret_admin_path), 'text/html; charset=utf-8',
                                        {'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'"})
+                if path == '/club-logo':
+                    logo=club_settings.public(store)['logo']
+                    if not logo: raise Fault(404,'Logo not set')
+                    raw=base64.b64decode(logo.split(',',1)[1])
+                    self.send_response(200)
+                    self.send_header('Content-Type','image/png')
+                    self.send_header('Content-Length',str(len(raw)))
+                    self.send_header('X-Content-Type-Options','nosniff')
+                    self.send_header('Cache-Control','no-cache')
+                    self.send_header('Content-Security-Policy',"default-src 'none'")
+                    self.end_headers();self.wfile.write(raw);return
+                if path == '/api/checkpoint':
+                    self._client_version()
+                    return self._write(200,attempt_updates.checkpoint(store,self._token()))
+                if path == '/api/catalog':
+                    return self._write(200,club_settings.catalog(store,catalog_root))
+                if path == '/api/admin/branding':
+                    self._require_admin()
+                    return self._write(200,club_settings.public(store))
                 if path == '/api/admin/catalog':
                     self._require_admin()
                     try:
-                        return self._write(200, load_catalog(catalog_root))
+                        return self._write(200, club_settings.catalog(store, catalog_root))
                     except ValueError as exc:
                         raise Fault(500, str(exc))
                 if path == '/api/admin/events':
@@ -967,7 +1017,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200, {'events': store.admin_listing()})
                 if path == '/launcher':
                     from site_theme import shell
-                    info = (tr('<section class="hero"><span class="eyebrow">Start a rally / Windows</span><h1>ACR Club Launcher</h1><p>Install once. Then start rallies with one click on RUN RALLY.</p><p><a class="btn-link" href="/download">⬇ Download Windows installer</a></p></section><section class="card"><h2>How to get started?</h2><p>You do not need Python or .bat files. Download the .EXE, run it and register the acrclub:// protocol.</p><p>Sign in through Steam, choose a club nickname and a rally and click RUN RALLY. The launcher prepares the save and starts ACR through Steam.</p><p>Navigate manually to START STAGE. Details: <a href="/guide">driver guide →</a></p></section>'))
+                    info = (tr('<section class="hero"><span class="eyebrow">Start a rally / Windows</span><h1>ACR Club Launcher</h1><p>Install once. Then start rallies with one click on RUN RALLY.</p><p><a class="btn-link" href="/download">⬇ Download Windows installer</a></p></section><section class="card"><h2>How to get started?</h2><p>Download the installer, run it and allow the launcher to open from the website.</p><p>Sign in through Steam, choose a club nickname and a rally and click RUN RALLY. The launcher prepares the save and starts ACR through Steam.</p><p>Navigate manually to START STAGE. Details: <a href="/guide">driver guide →</a></p></section>'))
                     return self._write(200, shell('ACR Rally Club — Launcher',info,active='launcher'),
                                        'text/html; charset=utf-8')
                 if path in ('/','/index.html'):
@@ -992,6 +1042,8 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200, {'event': store.event(path.rsplit('/',1)[-1])[1]})
                 if path == '/api/me':
                     return self._write(200, store.state(self._token()))
+                if path.startswith('/api/results/'):
+                    return self._write(200,site(store,path.rsplit('/',1)[-1]),'text/html; charset=utf-8')
                 if path.startswith('/api/board/'):
                     return self._write(200, store.board(path.rsplit('/',1)[-1]))
                 raise Fault(404, tr('Not found'))
@@ -1005,6 +1057,7 @@ def make_handler(store, admin=None, catalog_root=None):
                 self._write(500, {'error': tr('Server error')})
 
         @request_localized
+        @club_settings.context(store)
         def do_POST(self):
             try:
                 self._gateway_guard()
@@ -1076,6 +1129,10 @@ def make_handler(store, admin=None, catalog_root=None):
                     if path == '/api/admin/logout':
                         admin.logout(self._admin_cookie())
                         return self._write(200, {'ok': True}, extra_headers={'Set-Cookie': admin.expired_cookie()})
+                    if path == '/api/admin/branding':
+                        return self._write(200,club_settings.configure(store,data))
+                    if path == '/api/admin/catalog':
+                        return self._write(200,club_settings.save_catalog(store,data))
                     if path == '/api/admin/discord':
                         out=discord_notifications.configure(store,data)
                         store.audit(self.client_address[0],'discord_config',None,{'enabled':out['enabled']})
@@ -1092,6 +1149,8 @@ def make_handler(store, admin=None, catalog_root=None):
                         if len(bits)!=2:raise Fault(404,tr('Season operation not found'))
                         season_id=bits[0]
                         operation=bits[1] if len(bits)>1 else ''
+                        if operation=='delete':
+                            return self._write(200,attempt_updates.purge_season(store,season_id,data.get('confirmId'),data.get('deleteRallies') is True))
                         if operation=='config':
                             out=save_season(store,data,season_id)
                         elif operation=='rallies':
@@ -1116,7 +1175,7 @@ def make_handler(store, admin=None, catalog_root=None):
                         return self._write(200,out)
                     if path == '/api/admin/events':
                         try:
-                            validate_catalog_event(data, load_catalog(catalog_root))
+                            validate_catalog_event(data, club_settings.catalog(store, catalog_root))
                             answer = store.create_admin_event(data)
                             store.audit(self.client_address[0], 'create', answer['id'],
                                         {'after': store.event(answer['id'])[1]})
@@ -1128,11 +1187,11 @@ def make_handler(store, admin=None, catalog_root=None):
                         if rest.endswith('/delete'):
                             ident = rest.removesuffix('/delete')
                             before = store.event(ident)[1]
-                            answer = store.delete_event(ident)
-                            store.audit(self.client_address[0], 'delete', ident, {'before': before})
+                            if data.get('confirmId')!=ident: raise Fault(400,'Type the rally ID to confirm permanent deletion')
+                            answer = store.delete_event(ident,data['confirmId'])
                             return self._write(200, answer)
                         try:
-                            validate_catalog_event(data, load_catalog(catalog_root))
+                            validate_catalog_event(data, club_settings.catalog(store, catalog_root))
                             before = store.event(rest)[1]
                             answer = store.update_event(rest, data)
                             store.audit(self.client_address[0], 'update', rest,
@@ -1155,6 +1214,11 @@ def make_handler(store, admin=None, catalog_root=None):
                     out = store.join(data.get('eventId'), data.get('nickname'))
                 elif path == '/api/start':
                     self._client_version()
+                    with store.lock:
+                        actor=store._auth(self._token());_,ev=store.event(actor['event_id'])
+                        v=self.headers.get('X-ACR-Launcher-Version','')
+                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,4)):
+                            raise Fault(426,'Install the latest 0.2.4 launcher from /download for this rally')
                     out = store.start(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('carId'), data.get('settings'))
                 elif path == '/api/heartbeat':
                     self._client_version()
@@ -1166,6 +1230,13 @@ def make_handler(store, admin=None, catalog_root=None):
                 elif path == '/api/stage-end':
                     self._client_version()
                     out = store.stage_end(self._token(),data.get('eventId'),data.get('stageIndex'),data.get('clockMs'),data.get('settings'))
+                elif path == '/api/stage-result':
+                    self._client_version()
+                    out = attempt_updates.stage_result(store,self._token(),data)
+                elif path == '/api/checkpoint':
+                    self._client_version()
+                    self._limit(path,12)
+                    out = attempt_updates.checkpoint(store,self._token(),data)
                 elif path == '/api/finalize':
                     self._client_version()
                     out = store.finalize(self._token(),data)

@@ -284,4 +284,5 @@ refresh();
 
 
 def html():
-    return admin_shell(tr(PAGE))
+    from admin_customization import enhance
+    return admin_shell(enhance(tr(PAGE)))

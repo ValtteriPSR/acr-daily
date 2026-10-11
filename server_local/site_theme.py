@@ -1,20 +1,21 @@
 """Unified presentation layer for local ACR Rally Club web pages. No JS frameworks."""
 from i18n import tr
 from html import escape
+from club_settings import brand_html, invite_html
 
 CSS = r"""
-:root{color-scheme:dark;--bg:#090c12;--surface:#141a22;--surface2:#1b222d;--line:#343b48;--text:#f2f5f8;--muted:#a4afbd;--accent:#ec5754;--accent2:#ff8b67;--cyan:#87e3de;--green:#7be0b2;--radius:12px}
+:root{color-scheme:dark;--bg:#141d30;--surface:#111827;--surface2:#19243a;--line:#343b48;--text:#f2f5f8;--muted:#a4afbd;--accent:#ed4703;--accent2:#ed4703;--cyan:#87e3de;--green:#7be0b2;--radius:0px}
 *{box-sizing:border-box}
 html{scroll-behavior:smooth}
-body{margin:0!important;color:var(--text)!important;font:15px/1.6 'Segoe UI',Inter,system-ui,sans-serif!important;background:radial-gradient(ellipse at 85% -10%,#2a222d 0%,transparent 42%),var(--bg)!important;min-height:100vh}
+body{margin:0!important;color:var(--text)!important;font:15px/1.6 'Segoe UI',Inter,system-ui,sans-serif!important;background:var(--bg)!important;min-height:100vh}
 body::before{content:'';position:fixed;inset:0;pointer-events:none;opacity:.05;z-index:0;background:repeating-linear-gradient(125deg,transparent 0 18px,#fff 19px,transparent 20px 36px)}
-a{color:#ed9690;text-decoration:none}a:hover{color:#fff;text-decoration:none}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
+a{color:#ed4703;text-decoration:none}a:hover{color:#fff;text-decoration:none}a:focus-visible,button:focus-visible,input:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 p,small{color:var(--muted)}p{margin-top:8px}h1,h2,h3{color:var(--text);line-height:1.2}h1{letter-spacing:-1.2px;font-size:clamp(30px,4vw,52px);font-weight:850}h2{font-size:clamp(20px,2.4vw,26px);letter-spacing:-.4px}h3{font-size:17px}
 main{max-width:1280px!important;margin:30px auto 0!important;padding:0 24px 65px!important;position:relative;z-index:1}
 .sitebar{position:relative;z-index:2;background:#11151df2;border-bottom:1px solid #343a45}
 .sitebar-in{max-width:1280px;margin:auto;min-height:76px;padding:0 24px;display:flex;align-items:center;justify-content:space-between;gap:22px;flex-wrap:wrap}
 .brand{display:flex;align-items:center;gap:13px;font-weight:900;letter-spacing:.02em;color:white!important;font-size:16px;white-space:nowrap}
-.brand-symbol{width:43px;height:43px;display:grid;place-items:center;background:linear-gradient(145deg,#f0635f,#ab323e);clip-path:polygon(12% 0,100% 0,88% 100%,0 100%);font:900 22px/1 system-ui;color:white}
+.brand-symbol{width:43px;height:43px;display:grid;place-items:center;background:#ed4703;font:900 22px/1 system-ui;color:white}
 .brand-sub{display:block;text-transform:uppercase;font-size:10px;letter-spacing:.22em;color:var(--muted);font-weight:700;margin-top:-4px}
 .site-nav{display:flex;align-items:center;gap:4px;flex-wrap:wrap}.site-nav a{display:inline-flex;gap:8px;align-items:center;padding:10px 13px;border-radius:7px;color:#c7cdd7;font-size:13px;font-weight:750;text-transform:uppercase;letter-spacing:.05em}.site-nav a:hover,.site-nav a[aria-current='page']{background:#242a35;color:#fff}
 .site-nav .nav-admin{border:1px solid #525768;margin-left:9px}
@@ -34,8 +35,8 @@ main>header:not(.sitebar),.hero{border:1px solid #303845;background:linear-gradi
 .toolbar{display:flex;align-items:center;gap:11px;flex-wrap:wrap;margin:18px 0}.toolbar input,.toolbar select{flex:1 1 220px;min-width:130px;max-width:340px}
 input,select,textarea{background:#0e141c!important;border:1px solid #535d6e!important;border-radius:7px!important;color:var(--text)!important;font:inherit;padding:10px 12px;min-height:42px}input::placeholder{color:#9ba5b4}label{color:#c4cdd7;font-size:13px;font-weight:750}
 button,.btn-link{background:#293746;color:#ecf3f7;border:1px solid #4f5b6b;border-radius:7px;padding:10px 16px;font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:8px;justify-content:center;font-size:13px;font-weight:800;transition:background .16s}
-button:hover,.btn-link:hover{background:#354554;color:#fff}button.primary,button.run,.btn-primary{background:linear-gradient(100deg,#f16862,#ce4147)!important;color:white!important;border:1px solid #f06b65!important;font-weight:900!important;box-shadow:0 8px 19px #e94d4320}button.primary:hover,button.run:hover,.btn-primary:hover{filter:brightness(1.13)}button:disabled{opacity:.4;cursor:not-allowed}
-button.tab{border-radius:7px;background:transparent;border:1px solid #3c4654;font-size:12px;padding:10px 14px;white-space:nowrap}button.tab[aria-selected=true]{background:#e65b56;border-color:#e65b56;color:#fff}
+button:hover,.btn-link:hover{background:#354554;color:#fff}button.primary,button.run,.btn-primary{background:#ed4703!important;color:#101522!important;border:1px solid #ed4703!important;font-weight:900!important;box-shadow:0 8px 19px #e94d4320}button.primary:hover,button.run:hover,.btn-primary:hover{filter:brightness(1.13)}button:disabled{opacity:.4;cursor:not-allowed}
+button.tab{border-radius:7px;background:transparent;border:1px solid #3c4654;font-size:12px;padding:10px 14px;white-space:nowrap}button.tab[aria-selected=true]{background:#ed4703;border-color:#ed4703;color:#101522}
 .tabs{display:flex;gap:8px;flex-wrap:wrap;padding-bottom:16px}.classification-panel[hidden]{display:none!important}
 .stage-schedule{max-height:380px}.stage-schedule th{position:sticky;top:0;z-index:1}.stage-schedule td,.stage-schedule th{padding:9px 11px}.stage-schedule th{letter-spacing:.02em}.stage-schedule td:first-child{min-width:145px}.stage-number{display:block;color:var(--accent2);font-size:11px;font-weight:800}.stage-schedule small{display:block;font-size:11px}.service-cell{color:var(--green);text-align:center}.rally-side,.split>.card{min-width:0}.conditions-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 16px;margin:0}.conditions-grid dt{color:var(--muted);font-size:12px}.conditions-grid dd{margin:1px 0 0;color:var(--text);font-size:13px;font-weight:750}.rally-conditions h2{margin-bottom:15px}
 .split{min-width:0;align-items:start;display:grid;grid-template-columns:1.2fr .8fr;gap:16px}.rally-meta{color:#b5c0cd}.rally-meta strong{color:#f1f5f8}.empty{border:1px dashed #4a5262;border-radius:10px;padding:26px;color:var(--muted);text-align:center}.backlink{margin:20px 0;display:inline-flex;align-items:center;gap:10px}
@@ -44,6 +45,7 @@ footer,.site-footer{color:#8995a5;margin:40px 0 0;padding:25px 0 10px;border-top
 .hide{display:none!important}.hrow{border-top:1px solid #343e49}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
 body.acr-admin main{max-width:1280px!important}body.acr-admin main>header{display:flex!important;align-items:center;justify-content:space-between;flex-wrap:wrap}body.acr-admin main>header::before{display:none}body.acr-admin .pane{background:#10161f!important}body.acr-admin #notice{border-radius:7px}
 @media(max-width:760px){.sitebar-in{padding:12px 16px}.site-nav{width:100%;overflow:auto;flex-wrap:nowrap}.site-nav a{font-size:11px;padding:8px 9px}.brand{font-size:14px}main{margin:10px auto!important;padding:0 13px 50px!important}.hero{padding:25px 20px!important}.stat{min-width:90px;padding-right:12px}.stats{gap:14px}.split,.grid{grid-template-columns:1fr!important}.card,.pane{padding:17px!important}td,th{padding:11px 12px}.site-footer{line-height:1.7}}
+*{border-radius:0!important}.brand-logo{object-fit:contain;background:transparent;flex-shrink:0}.brand{white-space:normal;min-width:0}.brand-sub{overflow-wrap:anywhere;letter-spacing:.12em}.discord-invite{border:1px solid #626e85;margin-left:auto}.archive{margin-top:24px}.site-nav{max-width:100%}.site-nav a{flex-shrink:0}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 """
 
@@ -82,16 +84,18 @@ def shell(title, content, *, active='rallies', footer=True, scripts=''):
     links = ''.join('<a href="'+href+'"'+(' aria-current="page"' if active==ident else '')+'>'+escape(label)+'</a>' for ident,href,label in nav)
     heading = ('<!doctype html><html lang="pl"><head><meta charset="utf-8">'
                '<meta name="viewport" content="width=device-width,initial-scale=1">'
-               '<title>'+escape(title)+'</title><style>'+CSS+tr('</style></head><body><div class="sitebar"><div class="sitebar-in"><a href="/" class="brand"><span class="brand-symbol">AC</span><span>ACR RALLY CLUB<span class="brand-sub">Rally championship</span></span></a><nav class="site-nav" aria-label="Main navigation">')+links+'</nav>'
-               '</div></div><main id="main">')
+               '<title>'+escape(title)+'</title><style>'+CSS+'</style></head><body><div class="sitebar"><div class="sitebar-in">'+brand_html()
+               +'<nav class="site-nav" aria-label="'+escape(tr('Main navigation'))+'">'+links+invite_html()+'</nav></div></div><main id="main">')
     tail=(tr('<footer class="site-footer">ACR Rally Club · Results subject to verification · DNF = 0 points</footer>') if footer else '')
-    return heading+content+tail+'</main>'+tr(scripts)+'</body></html>'
+    from public_security import DOWNLOAD_URL, launcher_release_page
+    download=launcher_release_page(DOWNLOAD_URL or 'https://github.com/ValtteriPSR/acr-daily/releases/latest')
+    document=heading+content+tail+'</main>'+tr(scripts)+'</body></html>'
+    return document.replace('href="/download"','href="'+escape(download,quote=True)+'"')
 
 
 def admin_shell(page, active='admin'):
     """Inject uniform top navigation and theme, preserving all V5 admin forms and JS."""
     links = (tr('<a href="/">Rallies</a><a href="/seasons">Results and standings</a><a href="/club">My profile</a><a href="/guide">Guide</a><a class="nav-admin" href="/admin">Rally administration</a><a class="nav-admin" href="/admin/seasons">Season administration</a>'))
-    bar = (tr('<div class="sitebar"><div class="sitebar-in"><a href="/" class="brand"><span class="brand-symbol">AC</span><span>ACR RALLY CLUB<span class="brand-sub">Administrator</span></span></a><nav class="site-nav" aria-label="Main navigation">')+links+'</nav>'
-           '</div></div>')
+    bar = ('<div class="sitebar"><div class="sitebar-in">'+brand_html(True)+'<nav class="site-nav" aria-label="'+escape(tr('Main navigation'))+'">'+links+invite_html()+'</nav></div></div>')
     return page.replace('</head>', '<style>'+CSS+'</style></head>', 1).replace(
         '<body>', '<body class="acr-admin">'+bar, 1)

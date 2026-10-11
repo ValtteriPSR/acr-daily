@@ -104,7 +104,7 @@ def send(webhook, payload, message_id=None):
         raise DeliveryError('Invalid Discord message ID')
     url = webhook + ('/messages/' + message_id if message_id else '?wait=true')
     request = Request(url, data=json.dumps(payload).encode(), method='PATCH' if message_id else 'POST',
-                      headers={'Content-Type': 'application/json', 'User-Agent': 'ACR-Rally-Club/0.2.3'})
+                      headers={'Content-Type': 'application/json', 'User-Agent': 'ACR-Rally-Club/0.2.4'})
     try:
         with build_opener(NoRedirect).open(request, timeout=10) as response:
             data = json.loads(response.read(65536))

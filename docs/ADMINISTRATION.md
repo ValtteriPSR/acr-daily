@@ -90,3 +90,15 @@ club nicknames, not Steam IDs. Keep database backups private.
 ## Discord
 
 Open **Discord notifications** in the rally administrator panel. Save a text channel webhook, enable live standings and summaries, then send a test message. See [Discord setup](DISCORD.md). Webhook tokens never appear in status responses or audit records.
+
+## Branding and content catalogs
+
+In the rally panel, use **Club appearance** to set the title, subtitle, home-page tagline, public Discord invite and PNG logo (256 KB maximum, up to 2048 × 2048 pixels). The invite is separate from the secret notifications webhook. Leave the invite blank to hide its navigation link. Settings and the logo live in the database.
+
+Open **Cars and stages catalog**, download its JSON backup, then edit and save the JSON. Existing IDs used by rallies cannot be removed or moved to another car class. New cars need `id`, `telemetry`, `name`, `cls`, and `group`; stages need `id` and `name`. Preserve internal game IDs. To discover new IDs, complete a short custom stage outside a club attempt, exit the game and read the `KATALOG` and `TELEMETRIA` launcher log lines on a subsequent RUN. Current save writing supports Greece, Alsace, Wales and Monte Carlo; a new location's save layout needs launcher support before it is enabled.
+
+## Break policy and permanent deletion
+
+New rallies use launcher protocol 0.2.4. Choose whether participants may exit at service and restore their private server checkpoint, or must complete in one sitting. Existing rally configurations remain locked after registration. Long pauses do not have a wall-clock time limit; heartbeat and game availability are still required.
+
+The rally **Delete** button works even with active attempts. Type the rally ID to permanently remove its entries, attempts, results, launch tickets, checkpoints and season association. Deleting a season requires its ID and a separate choice whether to delete its rallies as well. Keeping the rallies makes them standalone events. This does not delete Steam accounts or unrelated club history, nor recall already-posted Discord messages.

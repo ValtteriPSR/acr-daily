@@ -52,6 +52,9 @@ class FakeApi:
         if endpoint=='/api/start':return self.store.start(self.token,data['eventId'],data['stageIndex'],data['carId'],data.get('settings'))
         if endpoint=='/api/heartbeat':return self.store.heartbeat(self.token,data['eventId'],data['stageIndex'],data.get('settings'))
         if endpoint=='/api/stage-end':return self.store.stage_end(self.token,data['eventId'],data['stageIndex'],data['clockMs'],data.get('settings'))
+        if endpoint=='/api/stage-result':
+            import attempt_updates
+            return attempt_updates.stage_result(self.store,self.token,data)
         if endpoint=='/api/finalize':return self.store.finalize(self.token,data)
         if endpoint=='/api/dnf':return self.store.dnf(self.token,data['reason'])
         if endpoint=='/api/integrity-violation':return self.store.integrity_violation(self.token,data['reason'])
@@ -142,6 +145,24 @@ class MonitorTests(TestCase):
         self.step(6.0,None)
         self.assertEqual(self.store.state(self.token)['status'],'completed')
         self.assertEqual(self.store.board(self.ev['id'])['players'][0]['total'],506235)
+
+    def test_hours_on_pause_keep_active_and_connected(self):
+        self.step(0.0,frame(0));self.step(0.1,frame(500));self.step(1.0,frame(20000))
+        self.step(2.0,frame(20000));self.step(3*3600.0,frame(20000))
+        self.assertEqual(self.mon.status,'active')
+        self.assertEqual(self.store.state(self.token)['status'],'active')
+
+    def test_first_stage_save_is_submitted_before_finishing_rally(self):
+        self.step(0.0,frame(0));self.step(0.1,frame(500));self.step(0.3,frame(203452))
+        self.step(0.8,frame(203452,0));self.step(2.3,frame(203452,5))
+        self.assertEqual(self.mon.status,'ready')
+        rows=[{'stage':self.ev['stages'][0]['stageId'],'started':time.time()-5,
+               'runs':[{'car':'VWPoloGTIR5','time':203.452,'penalty':34.0}]}]
+        self.save.write_text(json.dumps(rows));self.step(4.0,None)
+        board=self.store.board(self.ev['id'])
+        self.assertTrue(board['stageResults'][0]['verified'])
+        self.assertEqual(board['stageResults'][0]['total_ms'],237452)
+        self.assertEqual(self.mon.status,'ready')
 
 if __name__=='__main__':
     import unittest;unittest.main()

@@ -109,7 +109,7 @@ class AdminHttpTests(unittest.TestCase):
         changed=copy.deepcopy(config);changed['name']='Improved Rally Zeli';changed['id']=generated_id
         self.assertEqual(self.send('POST',f'/api/admin/events/{generated_id}',changed, {'X-ACR-Admin':'1'})[0],200)
         self.assertEqual(self.store.event(generated_id)[1]['name'],'Improved Rally Zeli')
-        self.assertEqual(self.send('POST',f'/api/admin/events/{generated_id}/delete',{}, {'X-ACR-Admin':'1'})[0],200)
+        self.assertEqual(self.send('POST',f'/api/admin/events/{generated_id}/delete',{'confirmId':generated_id}, {'X-ACR-Admin':'1'})[0],200)
         self.assertEqual(len(self.send('GET','/api/events')[1]['events']), 1)
         self.assertEqual(self.send('POST','/api/admin/logout',{}, {'X-ACR-Admin':'1'})[0],200)
         self.assertEqual(self.send('GET','/api/admin/events')[0],401)
@@ -161,7 +161,7 @@ class AdminHttpTests(unittest.TestCase):
         self.store.join(ev['id'], 'Somebody')
         changed=copy.deepcopy(ev);changed['name']='Tampered'
         self.assertEqual(self.send('POST',f'/api/admin/events/{ev["id"]}',changed,{'X-ACR-Admin':'1'})[0],409)
-        self.assertEqual(self.send('POST',f'/api/admin/events/{ev["id"]}/delete',{}, {'X-ACR-Admin':'1'})[0],409)
+        self.assertEqual(self.send('POST',f'/api/admin/events/{ev["id"]}/delete',{}, {'X-ACR-Admin':'1'})[0],400)
         self.assertEqual(self.store.event(ev['id'])[1]['name'],ev['name'])
 
     def test_catalog_restricts_class_stages_and_rules(self):

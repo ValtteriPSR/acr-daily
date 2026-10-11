@@ -9,6 +9,10 @@ Judge validation requires route data and is not claimed here.
 from __future__ import annotations
 from collections import Counter
 import json
+import base64
+import gzip
+import hashlib
+import os
 from pathlib import Path
 import re
 import time
@@ -121,6 +125,8 @@ class AttemptMonitor:
         self.emit = emit
         self.source = source if source is not None else telemetry.SharedMemory()
         self.catalog = load_catalog()
+        if event.get('launcherProtocol')=='0.2.4':
+            self.catalog = api.call('/api/catalog')['cars']
         self.baseline = baseline if baseline is not None else self.read_baseline()
         self.stage_index = None
         self.stage_started = None
@@ -143,6 +149,11 @@ class AttemptMonitor:
         self.freeze_moved = False
         self.last_save_poll = 0.0
         self.last_final_try = 0.0
+        self.confirmed_stages = set()
+        self.game_seen = False
+        self.next_game_check=0.0
+        self.checkpoint_sent = False
+        self.checkpoint_try = 0.0
         self.final_timeout_started = None
         self._integrity_report = None
         self._integrity_checked_at = -1.0
@@ -161,6 +172,10 @@ class AttemptMonitor:
         self.status = state['status']
         self.stage_index = state['stage_index']
         self.chosen_car = state.get('car_id')
+        self.confirmed_stages={r['stage_index'] for r in state.get('results',[])}
+        if self.status=='ready' and not self.event.get('allowBreaks',True):
+            self._reject_integrity('Rajd trzeba przejechać na raz; poprzednia sesja została zamknięta')
+            return state
         if self.status == 'active':
             # If client was killed mid-stage, don't give a fresh legal attempt.
             # This is stricter than relying on server's heartbeat timeout alone.
@@ -232,6 +247,7 @@ class AttemptMonitor:
     def _begin(self, f):
         if not self._check_integrity(time.monotonic(), force=True):
             return
+        self.emit('TELEMETRIA: nazwa samochodu = '+str(f.car))
         car = car_by_telemetry(f.car, self.event['allowedCars'], self.catalog)
         if not car:
             self.emit('Zły lub nierozpoznany samochód: ' + str(f.car) + ' — próba nie jest zaliczana')
@@ -275,7 +291,7 @@ class AttemptMonitor:
         if not self._check_integrity(time.monotonic(), force=True):
             return
         index = self.stage_index
-        self.emit(f'META TELEMETRYCZNA OS {index + 1}: timer {self.highwater/1000:.3f}s; wynik oficjalny odczytam po rajdzie')
+        self.emit(f'META TELEMETRYCZNA OS {index + 1}: timer {self.highwater/1000:.3f}s; czas jest już na stronie; sprawdzam zapis gry')
         try:
             outcome = self.api.call('/api/stage-end', {'eventId':self.event['id'],
                  'stageIndex':index,'clockMs':int(self.highwater),'settings':self._integrity_report})
@@ -288,6 +304,7 @@ class AttemptMonitor:
         self.highwater = 0
         self.last_seen_zero = False
         self.active_track = None
+        self.checkpoint_sent = False
         self.freeze_since = None
         self.freeze_at = None
         self.freeze_moved = False
@@ -316,7 +333,7 @@ class AttemptMonitor:
         # Match by stage ID and chosen car, never by the display name/RAW alone.
         ordered = []
         previous_started = 0
-        for ix, planned in enumerate(self.event['stages']):
+        for ix, planned in enumerate(self.event['stages'][:self.stage_index]):
             match = None
             for entry in entries:
                 if entry['started'] <= previous_started or \
@@ -332,8 +349,18 @@ class AttemptMonitor:
                 previous_started = entry['started']
                 break
             if match is None:
-                return
+                break
             ordered.append(match)
+        for record in ordered:
+            if record['stageIndex'] in self.confirmed_stages: continue
+            try:
+                self.api.call('/api/stage-result',{**record,'settings':self._integrity_report})
+                self.confirmed_stages.add(record['stageIndex'])
+                self.emit(f'OS {record["stageIndex"]+1}: wynik z karami potwierdzony na stronie')
+            except ApiError as exc:
+                self.emit('Potwierdzenie OS-u będzie ponowione: '+str(exc))
+                return
+        if self.status!='awaiting_results' or len(ordered)!=len(self.event['stages']): return
         try:
             answer = self.api.call('/api/finalize', {'stages':ordered,'settings':self._integrity_report})
         except ApiError as exc:
@@ -354,9 +381,17 @@ class AttemptMonitor:
         now = time.monotonic()
         if not self._check_integrity(now):
             return
-        if self.status == 'awaiting_results':
+        if self.stage_index and self.status!='active':
             self._finalize_if_available(now)
+        if self.status == 'awaiting_results' or self.dead:
             return
+        if os.name=='nt' and now>=self.next_game_check:
+            self.next_game_check=now+0.75
+            running=saveslot.game_running()
+            self.game_seen=self.game_seen or running
+            if self.game_seen and not running and self.status=='ready':
+                self._exit_at_service(now)
+                return
         f = self.source.read()
         unloaded = getattr(self.source, 'unloaded', False)
         if self.status == 'active':
@@ -408,9 +443,6 @@ class AttemptMonitor:
                     moved = ((self.freeze_at[0] - f.x)**2 + (self.freeze_at[1] - f.z)**2)**0.5
                     if moved > 2.0:
                         self.freeze_moved = True
-                if not self.freeze_moved and now - self.freeze_since > 15 * 60:
-                    self._server_dnf('Pauza trwała ponad 15 minut')
-                    return
                 if self.freeze_moved and now - self.freeze_since > 1.25:
                     self._stage_end()
                     return
@@ -428,7 +460,33 @@ class AttemptMonitor:
             self._begin(f)
         self.prev_clock = f.clock_ms
 
+    def _exit_at_service(self, now):
+        next_stage=self.event['stages'][self.stage_index]
+        if not self.event.get('allowBreaks',True) or not next_stage.get('serviceBefore',False):
+            self._reject_integrity('Wyjście z gry poza dozwolonym serwisem; rajd musi być kontynuowany bez zamykania gry')
+            return
+        if self.checkpoint_sent or now-self.checkpoint_try<3.0: return
+        self.checkpoint_try=now
+        try:
+            raw=Path(saveslot.SAVE).read_bytes()
+            from .integrity_rules import compare
+            report=integrity.report_from_save(raw)
+            if compare(self.event,report): raise ValueError('Ustawienia zapisu różnią się od rajdu')
+            if len(raw)>4*1024*1024: raise ValueError('Plik zapisu przekracza limit 4 MB')
+            self.api.call('/api/checkpoint',{'save':base64.b64encode(gzip.compress(raw)).decode('ascii'),
+                'digest':hashlib.sha256(raw).hexdigest(),'baseline':self.baseline,
+                'stageIndex':self.stage_index,'settings':report})
+            self.checkpoint_sent=True
+            self.emit('PRZERWA: kopia zapisu przesłana na serwer. Możesz zamknąć launcher. Wznów przez RUN na stronie.')
+        except (ApiError,OSError,ValueError) as exc:
+            self.emit('Nie zapisano kopii na serwerze; nie zamykaj launchera, ponawiam: '+str(exc))
+
     def close(self):
         if self.status == 'active':
             self._server_dnf('Zamknięto klienta podczas OS-u')
+        elif self.status=='ready':
+            if not self.event.get('allowBreaks',True):
+                self._reject_integrity('Zamknięto launcher w rajdzie wymagającym jazdy na raz')
+            elif os.name=='nt' and not saveslot.game_running() and not self.checkpoint_sent:
+                self._exit_at_service(time.monotonic())
         self.source.close()

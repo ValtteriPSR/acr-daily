@@ -73,9 +73,9 @@ def localize_document(page):
     switch = '<span class="language-switch" aria-label="Language / Język">' + ''.join(links) + '</span>'
     style = ('<style>.language-switch{display:inline-flex;gap:3px;align-items:center;'
              'white-space:nowrap;margin-left:8px}.language-switch a{padding:7px 9px;'
-             'border:1px solid #535d6e;border-radius:6px;color:#eef3fa;font:700 12px system-ui;'
-             'text-decoration:none}.language-switch a[aria-current=true]{background:#9b3039;'
-             'border-color:#f16862}.language-switch-fallback{padding:12px 24px;text-align:right}</style>')
+             'border:1px solid #535d6e;border-radius:0;color:#eef3fa;font:700 12px system-ui;'
+             'text-decoration:none}.language-switch a[aria-current=true]{background:#ed4703;color:#101522;'
+             'border-color:#ed4703}.language-switch-fallback{padding:12px 24px;text-align:right}</style>')
     if '</head>' in page:
         page = page.replace('</head>', style + '</head>', 1)
     else:

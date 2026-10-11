@@ -123,4 +123,14 @@ refresh().catch(()=>{});
 
 
 def html():
-    return admin_shell(tr(PAGE))
+    return admin_shell(enhance_deletion(tr(PAGE)))
+
+
+def enhance_deletion(page):
+    import json
+    page=page.replace('<button data-open="${safe(s.id)}">','<button data-delete-season="${safe(s.id)}">'+tr('Delete')+'</button><button data-open="${safe(s.id)}">')
+    needle=" $('seasonList').querySelectorAll('[data-open]')"
+    warning=json.dumps(tr('Permanently delete the season, groups and assignments? Type the season ID:'),ensure_ascii=False)
+    cascade=json.dumps(tr('Also permanently delete all rallies in this season, including entries and results? Cancel keeps the rallies as standalone events.'),ensure_ascii=False)
+    js=" $('seasonList').querySelectorAll('[data-delete-season]').forEach(b=>b.onclick=async()=>{const id=b.dataset.deleteSeason;if(prompt("+warning+",'')!==id)return;try{await api('/api/admin/seasons/'+encodeURIComponent(id)+'/delete','POST',{confirmId:id,deleteRallies:confirm("+cascade+")});$('editor').classList.add('hide');await refresh()}catch(e){notify(e.message,true)}});\n"
+    return page.replace(needle,js+needle)
