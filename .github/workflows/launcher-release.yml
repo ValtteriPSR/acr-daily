@@ -1,6 +1,8 @@
 name: Publish Windows launcher
 on:
   push:
+    branches: ['rally-club']
+    paths: ['VERSION']
     tags:
       - 'v*'
   workflow_dispatch:
@@ -10,7 +12,7 @@ on:
         required: true
         type: string
       release_tag:
-        description: 'New release tag, for example v0.2.2 or v0.2.2-custom-domain'
+        description: 'New release tag, for example v0.2.3 or v0.2.3-custom-domain'
         required: true
         type: string
 permissions:
@@ -105,9 +107,8 @@ jobs:
             dist/*-Source.zip.sha256
             dist/release-metadata.json
       - uses: softprops/action-gh-release@v2
-        if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
         with:
-          tag_name: ${{ inputs.release_tag || github.ref_name }}
+          tag_name: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || format('v{0}', env.RELEASE_VERSION) }}
           target_commitish: ${{ github.sha }}
           name: ACR Rally Club ${{ env.RELEASE_VERSION }}
           make_latest: true
@@ -117,4 +118,5 @@ jobs:
             dist/*-Source.zip
             dist/*-Source.zip.sha256
             dist/release-metadata.json
+          body_path: docs/RELEASE-NOTES.md
           generate_release_notes: true

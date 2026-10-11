@@ -1,2 +1,2 @@
 """Increment whenever launcher validation/telemetry rules change."""
-VERSION = '0.2.2'
+VERSION = '0.2.3'

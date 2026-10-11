@@ -16,6 +16,7 @@ from http.server import ThreadingHTTPServer
 from server import Store,make_handler
 from admin_panel import AdminAuth
 from tests.test_seasons import new_event,new_season
+from test_steam_auth import authenticated_pending
 
 
 class SeasonHttpTests(unittest.TestCase):
@@ -57,8 +58,12 @@ class SeasonHttpTests(unittest.TestCase):
 
     def test_club_register_enroll_ticket_run_and_stage_table(self):
         self.assertIn('Steam',self.get('/club'))
+        pending=authenticated_pending(self.store)
+        self.jar.set_cookie(http.cookiejar.Cookie(0,'acrclub_steam_pending',pending,None,False,
+            '127.0.0.1',False,False,'/',True,False,None,True,None,None,{}))
         page=self.post('/web/club/register',{'nickname':'BrowserSeason','csrf':self.csrf()})
-        self.assertIn('kod odzyskiwania',page)
+        self.assertIn('BrowserSeason',page)
+        self.assertNotIn('odzyskiwania',page)
         self.assertTrue(any(c.name=='acrclub_member' for c in self.jar))
         sid=self.ajax('/api/admin/login',{'key':self.auth._secret})
         self.assertTrue(sid['ok'])

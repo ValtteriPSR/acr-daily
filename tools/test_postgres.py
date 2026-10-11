@@ -64,7 +64,7 @@ def main():
 
     server.connect_database = connect
     modules = ['test_server', 'test_seasons', 'test_admin', 'test_http',
-               'test_season_http', 'test_web_launcher', 'test_v6_public', 'test_steam_auth', 'test_discord_notifications']
+               'test_season_http', 'test_web_launcher', 'test_v6_public', 'test_steam_auth', 'test_discord_notifications', 'test_rally_details']
     try:
         suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
         result = unittest.TextTestRunner(verbosity=2).run(suite)

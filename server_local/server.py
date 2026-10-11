@@ -36,7 +36,7 @@ from admin_panel import AdminAuth, html as admin_html, load_catalog, validate_ca
 from admin_access import admin_path as get_admin_path
 from web_launcher import (install_tables, enroll, browser_player, mint_ticket,
                           redeem_ticket, abort_prestart, make_cookie, csrf_ok)
-from seasons import (install as install_seasons, club_register, club_recover,
+from seasons import (install as install_seasons,
                      club_join, club_player, member_by_cookie, cookie as club_cookie,
                      mint_club_ticket, ensure_division_assigned, members as club_members,
                      list_seasons, season_config, save_season, set_rallies, set_rally_points,
@@ -513,6 +513,7 @@ button.run{padding:13px 23px;border:0;border-radius:10px;background:#13b887;colo
 def site(store, identifier=None, browser=None, csrf=None, member=None):
     """Modern public pages. All data, CSRF forms and route targets retain V5 behavior."""
     from site_theme import shell
+    from rally_details import stage_schedule, rally_conditions
 
     def pill(text, cls=''):
         return '<span class="chip '+cls+'">'+escape(text)+'</span>'
@@ -553,7 +554,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     total_stages=len(ev['stages'])
     finished=sum(p['status']=='completed' for p in data['players'])
     content=(tr('<div><a class="backlink" href="/">← All rallies</a></div><section class="hero"><span class="eyebrow">Rally Weekend / ')+escape(ev['location'])+'</span>'
-             '<h1>'+escape(ev['name'])+'</h1><p>'+escape(ev['carClass'])+' · '+str(total_stages)+tr(' special stages</p><div class="stats"><div class="stat"><strong>')+str(total_stages)+tr('</strong><span>stages</span></div><div class="stat"><strong>')+str(len(data['players']))+tr('</strong><span>Participants</span></div><div class="stat"><strong>')+str(finished)+tr('</strong><span>Finished</span></div></div></section><div class="split"><section class="card"><span class="section-kicker">Round information</span><h2>Schedule</h2><p class="rally-meta"><strong>Opens:</strong> ')+escape(date_label(ev['opensAt']))+tr('</p><p class="rally-meta"><strong>Closes:</strong> ')+escape(date_label(ev['closesAt']))+tr('</p><p class="rally-meta"><strong>Location:</strong> ')+escape(ev['location'])+tr('</p><p class="rally-meta"><strong>Car class:</strong> ')+escape(ev['carClass'])+'</p></section>')
+             '<h1>'+escape(ev['name'])+'</h1><p>'+escape(ev['carClass'])+' · '+str(total_stages)+tr(' special stages</p><div class="stats"><div class="stat"><strong>')+str(total_stages)+tr('</strong><span>stages</span></div><div class="stat"><strong>')+str(len(data['players']))+tr('</strong><span>Participants</span></div><div class="stat"><strong>')+str(finished)+tr('</strong><span>Finished</span></div></div></section><div class="split"><section class="card"><span class="section-kicker">Round information</span><h2>Schedule</h2><p class="rally-meta"><strong>Opens:</strong> ')+escape(date_label(ev['opensAt']))+tr('</p><p class="rally-meta"><strong>Closes:</strong> ')+escape(date_label(ev['closesAt']))+tr('</p><p class="rally-meta"><strong>Location:</strong> ')+escape(ev['location'])+tr('</p><p class="rally-meta"><strong>Car class:</strong> ')+escape(ev['carClass'])+'</p>'+stage_schedule(ev)+'</section><div class="rally-side">')
     content+=tr('<section class="card"><span class="section-kicker">Driver area</span><h2>Your entry</h2>')
     if csrf:
         csrf_field='<input type="hidden" name="csrf" value="'+escape(csrf,quote=True)+'">'
@@ -585,7 +586,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
                 content+=tr('<p class="muted">Entry confirmed. RUN RALLY will be available from ')+escape(date_label(ev['opensAt']))+'.</p>'
             else:
                 content+=tr('<p class="muted">RUN is locked — the attempt is in progress or has ended.</p>')
-    content+='</section></div>'
+    content+='</section>'+rally_conditions(ev)+'</div></div>'
     content+=tr('<section class="card"><div class="card-head"><div><span class="section-kicker">Rally standings</span><h2>Overall results</h2></div>')+pill(str(len(data['players']))+tr(' drivers'))+'</div>'
     content+=(tr('<div class="toolbar"><label for="driver-search">Search drivers</label><input type="search" id="driver-search" placeholder="Enter a driver nickname…" autocomplete="off"></div>'))
     content+=(tr('<div class="table-scroll"><table><thead><tr><th>Position</th><th>Driver</th><th>Car</th><th>SS</th><th>Total time</th><th>Status</th></tr></thead><tbody>'))
@@ -1008,23 +1009,13 @@ def make_handler(store, admin=None, catalog_root=None):
             try:
                 self._gateway_guard()
                 path = unquote(urlparse(self.path).path)
-                if path in ('/web/club/register','/web/club/recover'):
+                if path == '/web/club/register':
                     self._limit(path,6)
                     data=self._form()
                     cookies=self._require_web_form(data)
-                    pending=cookies.get('acrclub_steam_pending')
-                    if pending or PUBLIC_URL:
-                        account=steam_finish(store,pending,data.get('nickname',''),
-                                             data.get('recovery','') if path.endswith('/recover') else None)
-                        return self._redirect('/club',cookie=[club_cookie(account['token'],secure=self._secure_cookie()),
-                            steam_auth.cookie('acrclub_steam_pending','',secure=self._secure_cookie(),age=0)])
-                    if path.endswith('/register'):
-                        account=club_register(store,data.get('nickname',''))
-                        page=(tr('<html lang="pl"><meta charset="utf-8"><title>Club account</title><style>')+STYLE+tr('</style><main><h1>Welcome to the club!</h1><section class="card"><p>Nick: <strong>')+escape(account['nickname'])+tr('</strong></p><p>Save this recovery code somewhere safe — it will not be shown again:</p><p><code>')+escape(account['recovery'])+tr('</code></p><p><a href="/">Open rally list →</a></p></section></main></html>'))
-                        return self._write(200,page,'text/html; charset=utf-8',
-                                           {'Set-Cookie':club_cookie(account['token'],secure=self._secure_cookie())})
-                    account=club_recover(store,data.get('nickname',''),data.get('recovery',''))
-                    return self._redirect('/club',cookie=club_cookie(account['token'],secure=self._secure_cookie()))
+                    account=steam_finish(store,cookies.get('acrclub_steam_pending'),data.get('nickname',''))
+                    return self._redirect('/club',cookie=[club_cookie(account['token'],secure=self._secure_cookie()),
+                        steam_auth.cookie('acrclub_steam_pending','',secure=self._secure_cookie(),age=0)])
                 if path in ('/web/club/nickname','/web/club/logout'):
                     self._limit(path,20)
                     data=self._form()
@@ -1067,6 +1058,8 @@ def make_handler(store, admin=None, catalog_root=None):
                     page = (tr('<!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Starting ACR Rally Club</title><style>') + STYLE + tr('</style></head><body><main><h1>Starting the rally</h1><section class="card"><p>If prompted, select “Open ACR Club Launcher”.</p><p><a class="run" style="display:inline-block" href="')+safe+tr('">▶ OPEN LAUNCHER</a></p><p><small>The ticket expires after 60 seconds. If nothing happens, check the launcher installation or return to the rally page.</small></p><p><a href="/rally/')+escape(event_id,quote=True)+tr('">← Rally</a></p></section></main><script>window.location.href=')+_json.dumps(protocol)+';</script></body></html>')
                     return self._write(200, page, 'text/html; charset=utf-8',
                                        {'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'"})
+                if path.startswith('/web/'):
+                    raise Fault(404, tr('Not found'))
                 data = self._body()
                 if path.startswith('/api/admin/'):
                     self._require_admin_local()

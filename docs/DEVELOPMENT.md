@@ -45,8 +45,8 @@ errors are localized separately. Language state must never leak between requests
 ## Build and publish the Windows installer
 
 Use **Actions → Publish Windows launcher → Run workflow** on `rally-club`.
-Supply the public HTTPS club origin and a new release tag, such as `v0.2.2`.
-The project release and client version are `0.2.2`. Client `0.2.0` remains compatible.
+Supply the public HTTPS club origin and a new release tag, such as `v0.2.3`.
+The project release and client version are `0.2.3`. Client `0.2.0` remains compatible.
 The release includes the compiled EXE, a portable source ZIP and SHA256 checksums.
 
 The workflow configures the launcher origin, downloads the six pinned upstream
@@ -56,7 +56,7 @@ and publishes the EXE and its SHA256 checksum to GitHub Releases.
 
 Set `ACR_LAUNCHER_DOWNLOAD_URL` in Render to the published installer URL when
 changing releases. Never publish administrator keys, database URLs, player tokens
-or recovery codes. A build self-test is not a substitute for an in-game test.
+or account credentials. A build self-test is not a substitute for an in-game test.
 
 ## Deployment and security
 
@@ -89,13 +89,15 @@ session. Unrecognized users select a nickname before a club account is created.
 
 The database migration adds Steam identity, pending sign-in and nonce tables
 plus `club_sessions.steam_verified`. Old sessions cannot act as Steam sessions.
-Linking a legacy account requires Steam verification and its existing recovery
-code; old sessions are revoked. Nickname edits update club and rally display
+Recovery-key registration, sign-in and legacy linking are removed in 0.2.3.
+The old recovery_hash column remains inert for database compatibility; new Steam
+accounts store an empty value. Existing Steam identities and results are preserved.
+Nickname edits update club and rally display
 names transactionally without altering member IDs, attempt state or results.
 Steam IDs are not included in public standings. Logout revokes the club session.
 
 Tests exercise signature rejection, state binding, replay, expiry, onboarding,
-legacy linking, nickname conflicts, unchanged attempt identity and browser HTTP
+rejection of legacy account claims, nickname conflicts, unchanged attempt identity and browser HTTP
 cookies. PostgreSQL runs the same Steam suite in isolated schemas. Unit tests
 mock Valve signature verification; a real Steam user must still confirm the
 first production sign-in on Valve's website.

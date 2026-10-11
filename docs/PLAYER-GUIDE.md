@@ -8,7 +8,7 @@ You need Windows 10/11, Assetto Corsa Rally installed through Steam, an internet
 connection and the club launcher. You do not need Python, Git or a local server.
 
 1. Download **ACR-Rally-Club-Setup.exe** from the website's launcher button or
-   [GitHub Releases](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.2).
+   [GitHub Releases](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.3).
 2. Run the installer once to register `acrclub://` links.
 3. Open **My profile → Sign in through Steam**. Sign in on the official Steam
    website and confirm the return to the club. On the first visit, choose your
@@ -54,7 +54,17 @@ Event dates use fixed UTC+2, including in winter.
 
 Launcher logs are stored at `%LOCALAPPDATA%\ACR Rally Club\player-events.log`.
 Review them for private data before sharing them with the organizer. Do not edit
-the game save manually during a rally or share your recovery code.
+the game save manually during a rally or share your account access.
 
 The EXE build and import self-test have been checked on Windows in CI. A complete
 in-game run still needs verification on a computer with Assetto Corsa Rally.
+
+## Rally schedule and conditions
+
+Open a rally to see the start/end dates and location, then the ordered special
+stages with weather, in-game time and service before each stage. The first stage
+always has initial service. Long stage lists scroll inside the schedule.
+**Conditions** lists damage, wear, failures, penalties, respawn, starting position,
+grip, wetness and time settings. Wetness is set by stage weather; snow weather
+and the starting snow-cover setting are separate values. Sign in with the same
+Steam account when using another browser or computer; recovery keys are removed.

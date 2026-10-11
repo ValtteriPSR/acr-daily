@@ -6,7 +6,8 @@ import tempfile
 import time
 from datetime import datetime,timezone,timedelta
 from server import Store,Fault,site,make_handler
-from seasons import (club_register,club_recover,member_by_cookie,club_join,
+from identity_helpers import register_member
+from seasons import (member_by_cookie,club_join,
                      save_season,set_rallies,add_group,assign_member,
                      scoring,season_config,club_player, mint_club_ticket,
                      rename_group, delete_group, set_rally_points, set_team_capacity, ensure_division_assigned)
@@ -43,16 +44,14 @@ class SeasonTests(unittest.TestCase):
         self.s.db.close();self.temp.cleanup()
 
     def register(self,nick):
-        a=club_register(self.s,nick)
+        a=register_member(self.s,nick)
         m=member_by_cookie(self.s,a['token'])
         return a,m
 
     def test_club_identity_persists_and_ticket_uses_same_nick(self):
         a,m=self.register('My Driver')
         self.assertEqual(m['nickname'],'My Driver')
-        self.assertEqual(club_recover(self.s,'my driver',a['recovery'])['nickname'],'My Driver')
-        with self.assertRaises(Fault):club_register(self.s,'MY DRIVER')
-        with self.assertRaises(Fault):club_recover(self.s,'my driver','X'*50)
+        with self.assertRaises(Fault):register_member(self.s,'MY DRIVER')
         club_join(self.s,self.e['id'],m['id'])
         self.assertEqual(club_player(self.s,self.e['id'],m['id'])['nickname'],'My Driver')
         self.assertEqual(len(season_config(self.s,self.sid)['assignments']),1)

@@ -8,7 +8,7 @@ This integration posts as **ACR Rally Club** using an incoming channel webhook. 
 4. Open the ACR Rally Club administrator panel and find **Discord notifications**. Paste the URL, enable notifications, choose live standings, summaries and Polish or English, then save.
 5. Click **Send test message**. Check both the channel and the delivery status in the panel.
 
-The webhook URL is a secret: enter it only in the administrator panel. Leaving its input blank keeps the saved value. Unchecking **Enable Discord notifications** stops automatic posting. Only rally display nicknames, stage progress, participant statuses and rally times are posted; Steam identities, login tokens and recovery codes are never included.
+The webhook URL is a secret: enter it only in the administrator panel. Leaving its input blank keeps the saved value. Unchecking **Enable Discord notifications** stops automatic posting. Only rally display nicknames, stage progress, participant statuses and rally times are posted; Steam identities, login tokens are never included.
 
 One live scoreboard per rally is updated when its data changes, normally within about 15 seconds. Telemetry times are explicitly unverified; official times become available after the launcher submits a complete, validated rally. Tables show the first 20 participants and link to the complete website standings. A separate summary is posted after the closing time and after remaining active/verification attempts finish or time out. Registered drivers who did not start remain marked as registered. Historical rallies closed before the integration was enabled are not reposted.
 

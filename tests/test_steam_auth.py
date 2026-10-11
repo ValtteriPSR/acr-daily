@@ -19,10 +19,11 @@ import steam_auth as steam
 import server
 from server import Store, Fault, make_handler
 from admin_panel import AdminAuth
-from seasons import (steam_finish, member_by_cookie, change_nickname, club_register,
-                     club_recover, club_join, club_player, club_logout)
+from seasons import (steam_finish, member_by_cookie, change_nickname,
+                     club_join, club_player, club_logout)
 from public_security import launcher_release_page
 from test_seasons import new_event
+from identity_helpers import legacy_member
 
 
 def assertion(store, origin='https://league.example.com', steam_id='76561198012345678', nonce=None):
@@ -140,20 +141,20 @@ class SteamIdentityTests(unittest.TestCase):
         two=steam_finish(self.store,authenticated_pending(self.store,'76561198012345679'),'Second Driver')
         with self.assertRaises(Fault):change_nickname(self.store,one['token'],'second driver')
         self.assertEqual(member_by_cookie(self.store,one['token'])['nickname'],'First Driver')
-        legacy=club_register(self.store,'Legacy Driver')
+        legacy=legacy_member(self.store,'Legacy Driver')
         self.assertIsNone(member_by_cookie(self.store,legacy['token'],steam_only=True))
         with self.assertRaises(Fault):change_nickname(self.store,legacy['token'],'Other Driver')
 
-    def test_link_legacy_account_preserves_entries_and_revokes_old_session(self):
-        legacy=club_register(self.store,'Legacy Driver')
+    def test_legacy_account_cannot_be_claimed_by_nickname(self):
+        legacy=legacy_member(self.store,'Legacy Driver')
         member=member_by_cookie(self.store,legacy['token'])
         event=new_event();self.store.import_event(event);club_join(self.store,event['id'],member['id'])
-        linked=steam_finish(self.store,authenticated_pending(self.store),'Legacy Driver',legacy['recovery'])
-        self.assertEqual(linked['memberId'],member['id'])
+        pending=authenticated_pending(self.store)
+        with self.assertRaises(Fault):steam_finish(self.store,pending,'Legacy Driver')
+        self.assertIsNone(member_by_cookie(self.store,legacy['token'],steam_only=True))
         self.assertIsNotNone(club_player(self.store,event['id'],member['id']))
-        self.assertIsNone(member_by_cookie(self.store,legacy['token']))
-        with self.assertRaises(Fault):club_recover(self.store,'Legacy Driver',legacy['recovery'])
-        with self.assertRaises(Fault):steam_finish(self.store,authenticated_pending(self.store,'76561198012345679'),'Legacy Driver',legacy['recovery'])
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM club_steam_accounts').fetchone()[0],0)
+        self.assertIsNotNone(steam.pending_steam_id(self.store,pending))
 
     def test_pending_and_club_logout_revoke_tokens(self):
         pending=authenticated_pending(self.store)
@@ -197,6 +198,16 @@ class SteamHttpTests(unittest.TestCase):
                         headers={'Content-Type':'application/x-www-form-urlencoded','Origin':self.origin})
         with self.browser.open(request) as response:return response.read().decode()
 
+    def test_recovery_route_is_removed_and_registration_requires_steam(self):
+        self.get('/club')
+        with self.assertRaises(HTTPError) as error:
+            self.post('/web/club/recover', {'nickname':'Driver','recovery':'X'*43})
+        self.assertEqual(error.exception.code,404)
+        with self.assertRaises(HTTPError) as error:
+            self.post('/web/club/register', {'nickname':'Driver'})
+        self.assertEqual(error.exception.code,401)
+        self.assertEqual(self.store.db.execute('SELECT COUNT(*) FROM club_members').fetchone()[0],0)
+
     def test_browser_flow_onboarding_edit_logout_and_repeated_signin(self):
         self.assertIn('Steam',self.get('/club'))
         with self.assertRaises(HTTPError) as redirect:self.direct.open(self.origin+'/auth/steam')
@@ -209,6 +220,8 @@ class SteamHttpTests(unittest.TestCase):
             page=self.get('/auth/steam/callback?'+urlencode(values))
         self.assertIn('Steam',page)
         self.assertTrue(any(c.name=='acrclub_steam_pending' for c in self.jar))
+        self.assertNotIn('/web/club/recover',page)
+        self.assertNotIn('name="recovery"',page)
         page=self.post('/web/club/register',{'nickname':'Steam Driver'})
         self.assertIn('Steam Driver',page)
         self.assertFalse(any(c.name=='acrclub_steam_pending' for c in self.jar))

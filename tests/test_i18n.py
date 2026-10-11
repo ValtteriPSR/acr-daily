@@ -108,6 +108,10 @@ class LocalizationTests(unittest.TestCase):
 
     def test_registration_errors_use_selected_language(self):
         page = self.switch('en', '/club')[0]
+        from test_steam_auth import authenticated_pending
+        pending = authenticated_pending(self.store)
+        self.jar.set_cookie(http.cookiejar.Cookie(0,'acrclub_steam_pending',pending,None,False,
+            '127.0.0.1',False,False,'/',True,False,None,True,None,None,{}))
         csrf = next(c.value for c in self.jar if c.name == 'acrclub_csrf')
         request = Request(self.base + '/web/club/register',
                           data=urlencode({'nickname': 'x', 'csrf': csrf}).encode(),

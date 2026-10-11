@@ -10,7 +10,8 @@ from pathlib import Path
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'server_local'))
 from server import Store, Fault
-from seasons import (DEFAULT_POWER_STAGE, club_register, member_by_cookie, club_join,
+from identity_helpers import register_member
+from seasons import (DEFAULT_POWER_STAGE, member_by_cookie, club_join,
                      club_player, save_season, season_config, set_rallies,
                      set_rally_points, scoring, install, add_group, assign_member)
 from season_panel import PAGE
@@ -42,7 +43,7 @@ class PowerStageTests(unittest.TestCase):
     def tearDown(self):
         self.store.db.close();self.temp.cleanup()
     def finish(self,nick,first,last,complete=True):
-        identity=club_register(self.store,nick)
+        identity=register_member(self.store,nick)
         mid=member_by_cookie(self.store,identity['token'])['id']
         club_join(self.store,'power-rally',mid)
         row=club_player(self.store,'power-rally',mid)

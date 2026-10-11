@@ -1,4 +1,4 @@
-# ACR Rally Club 0.2.2
+# ACR Rally Club 0.2.3
 
 A web-based rally club for Assetto Corsa Rally, based on
 [ACR Daily](https://github.com/khanhonthetrack/acr-daily). Manage rallies,
@@ -6,7 +6,11 @@ championships, divisions and teams in a browser. Players use a Windows launcher
 to prepare Rally Weekend, read telemetry and submit official results.
 
 **[Open the club](https://acr-rally-club.onrender.com/)** ·
-**[Download the Windows installer](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.2)**
+**[Download the Windows installer](https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.3)**
+
+Rally pages show each special stage in order, with weather, in-game start time
+and service before the stage. A compact **Conditions** section shows the actual
+Rally Weekend rules and fixed launcher settings.
 
 The website supports Polish and English. Use **PL / EN** in the navigation bar;
 the browser remembers your choice. Rally names, nicknames and team names remain
@@ -14,8 +18,8 @@ exactly as entered by their authors.
 
 Players sign in through Steam, then choose their club display nickname. The
 nickname can be edited under **My profile** without changing account identity,
-rally attempts or results. Existing club members can link their previous account
-after Steam sign-in using their saved recovery code. Steam passwords are entered
+rally attempts or results. Account access is restored by signing in with the
+same Steam account. Steam passwords are entered
 only on Steam; the club stores the verified SteamID privately.
 
 The website's launcher button downloads the latest compiled Windows installer

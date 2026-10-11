@@ -6,7 +6,8 @@ from pathlib import Path
 from datetime import datetime,timezone,timedelta
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server_local'))
 from server import Store, Fault, site
-from seasons import club_register, club_join, member_by_cookie, save_season, set_rallies, mint_club_ticket
+from identity_helpers import register_member
+from seasons import club_join, member_by_cookie, save_season, set_rallies, mint_club_ticket
 from web_launcher import enroll, mint_ticket, redeem_ticket, abort_prestart
 from admin_access import admin_path
 
@@ -39,7 +40,7 @@ class RegistrationAndAdminRegressions(unittest.TestCase):
         ticket=mint_ticket(self.s,cookie,self.event['id'])
         self.assertEqual(redeem_ticket(self.s,ticket)['status'],'registered')
     def test_future_rally_club_member_can_register_but_cannot_run(self):
-        member=club_register(self.s,'ClubNick')
+        member=register_member(self.s,'ClubNick')
         m=member_by_cookie(self.s,member['token'])
         s=datetime.now(timezone.utc)
         se=save_season(self.s,{'name':'Season 2027','opensAt':(s-timedelta(days=1)).isoformat(),

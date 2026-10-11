@@ -81,7 +81,8 @@ instances against the same database. Never expose the backend port directly.
 ## Steam member accounts
 
 Members sign in on Steam and choose or edit their nickname under My profile.
-Existing nicknames can be linked to Steam with their saved legacy recovery code.
+Recovery-key login and legacy account linking are no longer available.
+Players regain access by signing in with the same Steam account.
 The administrator key and browser password still protect the private panel.
 Steam sign-in does not grant administrator privileges. Public standings expose
 club nicknames, not Steam IDs. Keep database backups private.
