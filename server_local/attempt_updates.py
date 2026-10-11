@@ -14,9 +14,42 @@ MAX_CHECKPOINT_STORAGE = 64 * 1024 * 1024
 
 
 def install(store):
+    store.db.execute('''CREATE TABLE IF NOT EXISTS telemetry_penalties (
+      player_id INTEGER NOT NULL REFERENCES players(id), stage_index INTEGER NOT NULL,
+      penalty_ms INTEGER NOT NULL, updated REAL NOT NULL,
+      PRIMARY KEY(player_id,stage_index))''')
     store.db.execute('''CREATE TABLE IF NOT EXISTS rally_checkpoints (
       player_id INTEGER PRIMARY KEY REFERENCES players(id), stage_index INTEGER NOT NULL,
       payload TEXT NOT NULL, digest TEXT NOT NULL, created REAL NOT NULL)''')
+
+
+def observe_penalty(store,p,idx,value):
+    from server import Fault
+    if value is None: return
+    if type(value) is not int or not 0<=value<=3600000:
+        raise Fault(400,'Invalid telemetry penalty')
+    # Zero may be an unsupported game field. Only positive observations form a floor.
+    if value == 0: return
+    old=store.db.execute('SELECT penalty_ms FROM telemetry_penalties WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
+    maximum=max(value,old['penalty_ms'] if old else 0)
+    accepted=store.db.execute('SELECT penalty_ms FROM results WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
+    if accepted and accepted['penalty_ms']+10<maximum:
+        raise Fault(409,'Telemetry penalty exceeds accepted result; administrator review required')
+    store.db.execute('''INSERT INTO telemetry_penalties(player_id,stage_index,penalty_ms,updated)
+      VALUES(?,?,?,?) ON CONFLICT(player_id,stage_index) DO UPDATE SET penalty_ms=excluded.penalty_ms,updated=excluded.updated''',(p['id'],idx,maximum,time.time()))
+
+
+def late_penalty(store,token,data):
+    from server import Fault
+    with store.lock:
+        p=store._auth(token);idx=data.get('stageIndex')
+        if p['status'] not in ('ready','awaiting_results') or type(idx) is not int or idx!=p['stage_index']-1:
+            raise Fault(409,'No just-finished stage awaiting telemetry')
+        prov=store.db.execute('SELECT clock_ms FROM provisional WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
+        if not prov or type(data.get('clockMs')) is not int or data['clockMs']!=prov['clock_ms']:
+            raise Fault(409,'Telemetry finish does not match')
+        observe_penalty(store,p,idx,data.get('penaltyMs'))
+        return {'ok':True}
 
 
 def validate_record(store,p,event,record,idx,previous=0):
@@ -33,6 +66,9 @@ def validate_record(store,p,event,record,idx,previous=0):
     if not prov: raise Fault(409,'Stage has no telemetry finish')
     if abs(raw-prov['clock_ms'])>5000: raise Fault(409,'Official timer differs from telemetry by more than 5 seconds')
     if started>prov['finished']+60: raise Fault(409,'Result starts after its telemetry finish')
+    observed=store.db.execute('SELECT penalty_ms FROM telemetry_penalties WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
+    if observed and pen+10<observed['penalty_ms']:
+        raise Fault(409,'Save penalty is lower than live telemetry; administrator review required')
     return raw,pen,total,started
 
 
@@ -73,6 +109,9 @@ def checkpoint(store,token,data=None):
         idx=p['stage_index']
         if p['status']!='ready' or not ev.get('allowBreaks',True) or not ev['stages'][idx].get('serviceBefore',False):
             raise Fault(409,'Resume is allowed only at a service before the next stage')
+        count=store.db.execute('SELECT COUNT(*) FROM results WHERE player_id=? AND stage_index<?',(p['id'],idx)).fetchone()[0]
+        if count!=idx:
+            raise Fault(409,'Break not confirmed: official times and penalties for completed stages are missing')
         if data is None:
             row=store.db.execute('SELECT * FROM rally_checkpoints WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
             if not row: return {'available':False}
@@ -96,7 +135,7 @@ def checkpoint(store,token,data=None):
 
 
 def purge_event_rows(store,ident):
-    for table in ('web_sessions','launch_tickets','launch_leases','rally_checkpoints','provisional','results'):
+    for table in ('web_sessions','launch_tickets','launch_leases','rally_checkpoints','telemetry_penalties','provisional','results'):
         store.db.execute('DELETE FROM '+table+' WHERE player_id IN (SELECT id FROM players WHERE event_id=?)',(ident,))
     store.db.execute('DELETE FROM players WHERE event_id=?',(ident,))
     store.db.execute('DELETE FROM season_events WHERE event_id=?',(ident,))

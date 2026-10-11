@@ -1,3 +1,15 @@
+## ACR Rally Club 0.2.5
+
+- Read-only `penaltyTime` telemetry extension; positive penalties reported during driving and persisted with the provisional result at stage finish, before a game restart.
+- Retain observed penalty floors on the server; reject save-confirmed penalties below those observations for review. Zero/unsupported telemetry is unknown, not evidence of no penalties.
+- Attempt official save submission in the finish cycle and poll available results every 250 ms; no intentional wait for the next stage.
+- Service breaks now require server-confirmed official results and penalties for every completed stage before checkpoint upload or restore. Clear launcher warning when results are missing.
+- Additive SQLite/PostgreSQL table, bounded numeric validation, private attempt authentication and purge coverage. New protocol rallies require launcher 0.2.5 at stage start.
+
+### Verification and limits
+
+Tests cover byte offsets, stale frames, invalid floats, immediate finish submission, positive live penalties, decreasing penalty reports, lower save penalties and missing-result checkpoints. CI checks PostgreSQL, browsers, portable Docker and compiled Windows imports. The field layout and ACR support are documented by https://github.com/nobonobo/ac-telemetry (MIT); the pinned older ACR Daily reader did not expose this field. Actual game-version field behavior, exact finish timing and persistence on the results/service screen still need a Windows game test. No fabricated zero penalties, OCR guesses, process injection or full modified-client anti-cheat guarantee.
+
 ## ACR Rally Club 0.2.4
 
 - New #141d30 background, #ed4703 accents and rectangular controls; responsive PL/EN pages.

@@ -377,7 +377,7 @@ class Store:
                 if self.db.in_transaction: self.db.execute('ROLLBACK')
                 raise
 
-    def heartbeat(self, token, event_id, stage_index, settings=None):
+    def heartbeat(self, token, event_id, stage_index, settings=None, penalty_ms=None):
         with self.lock:
             self._sweep()
             p = self._auth(token)
@@ -387,6 +387,7 @@ class Store:
             reason = self._integrity_or_dnf(p, config, settings)
             if reason:
                 raise Fault(409, reason)
+            attempt_updates.observe_penalty(self,p,stage_index,penalty_ms)
             self.db.execute('UPDATE players SET last_seen=? WHERE id=?', (time.time(), p['id']))
             return {'ok': True}
 
@@ -406,8 +407,8 @@ class Store:
                 if self.db.in_transaction: self.db.execute('ROLLBACK')
                 raise
 
-    def stage_end(self, token, event_id, index, clock_ms, settings=None):
-        'Mark a telemetry finish. Official game results are submitted only after all stages.'
+    def stage_end(self, token, event_id, index, clock_ms, settings=None, penalty_ms=None):
+        'Persist telemetry timing and observed penalties immediately at the finish.'
         with self.lock:
             self._begin()
             try:
@@ -422,6 +423,7 @@ class Store:
                     raise Fault(409, reason)
                 if type(clock_ms) is not int or not 10000 <= clock_ms <= 4*60*60*1000:
                     raise Fault(400, tr('Invalid stage timer'))
+                attempt_updates.observe_penalty(self,p,index,penalty_ms)
                 now = time.time()
                 self.db.execute('''INSERT INTO provisional(player_id,stage_index,clock_ms,finished)
                   VALUES(?,?,?,?)''', (p['id'], index, clock_ms, now))
@@ -509,10 +511,11 @@ class Store:
                    WHERE p.event_id=? ORDER BY r.stage_index,r.total_ms,r.player_id''',(event_id,))]
             for r in stage_results: r['verified']=True
             pending=[dict(r) for r in self.db.execute('''SELECT v.player_id,v.stage_index,v.clock_ms AS raw_ms,
-              v.clock_ms AS total_ms,p.nickname FROM provisional v JOIN players p ON p.id=v.player_id
+              v.clock_ms+COALESCE(t.penalty_ms,0) AS total_ms,t.penalty_ms,p.nickname FROM provisional v JOIN players p ON p.id=v.player_id
+              LEFT JOIN telemetry_penalties t ON t.player_id=v.player_id AND t.stage_index=v.stage_index
               WHERE p.event_id=? AND NOT EXISTS (SELECT 1 FROM results r WHERE r.player_id=v.player_id AND r.stage_index=v.stage_index)''',(event_id,))]
             for r in pending:
-                r.update(stage_id=event['stages'][r['stage_index']]['stageId'],penalty_ms=None,verified=False)
+                r.update(stage_id=event['stages'][r['stage_index']]['stageId'],verified=False)
             stage_results.extend(pending)
             stage_results.sort(key=lambda r:(r['stage_index'],r['total_ms'],r['player_id']))
             players=[dict(p) for p in players]
@@ -1225,19 +1228,22 @@ def make_handler(store, admin=None, catalog_root=None):
                     with store.lock:
                         actor=store._auth(self._token());_,ev=store.event(actor['event_id'])
                         v=self.headers.get('X-ACR-Launcher-Version','')
-                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,4)):
-                            raise Fault(426,'Install the latest 0.2.4 launcher from /download for this rally')
+                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,5)):
+                            raise Fault(426,'Install the latest 0.2.5 launcher from /download for this rally')
                     out = store.start(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('carId'), data.get('settings'))
                 elif path == '/api/heartbeat':
                     self._client_version()
-                    out = store.heartbeat(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('settings'))
+                    out = store.heartbeat(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('settings'), data.get('penaltyMs'))
+                elif path == '/api/telemetry-penalty':
+                    self._client_version()
+                    out = attempt_updates.late_penalty(store,self._token(),data)
                 elif path == '/api/integrity-violation':
                     out = store.integrity_violation(self._token(),data.get('reason', tr('Settings mismatch')))
                 elif path == '/api/dnf':
                     out = store.dnf(self._token(), data.get('reason', 'Wycofanie'))
                 elif path == '/api/stage-end':
                     self._client_version()
-                    out = store.stage_end(self._token(),data.get('eventId'),data.get('stageIndex'),data.get('clockMs'),data.get('settings'))
+                    out = store.stage_end(self._token(),data.get('eventId'),data.get('stageIndex'),data.get('clockMs'),data.get('settings'),data.get('penaltyMs'))
                 elif path == '/api/stage-result':
                     self._client_version()
                     out = attempt_updates.stage_result(store,self._token(),data)

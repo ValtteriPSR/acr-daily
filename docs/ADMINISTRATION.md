@@ -102,3 +102,9 @@ Open **Cars and stages catalog**, download its JSON backup, then edit and save t
 New rallies use launcher protocol 0.2.4. Choose whether participants may exit at service and restore their private server checkpoint, or must complete in one sitting. Existing rally configurations remain locked after registration. Long pauses do not have a wall-clock time limit; heartbeat and game availability are still required.
 
 The rally **Delete** button works even with active attempts. Type the rally ID to permanently remove its entries, attempts, results, launch tickets, checkpoints and season association. Deleting a season requires its ID and a separate choice whether to delete its rallies as well. Keeping the rallies makes them standalone events. This does not delete Steam accounts or unrelated club history, nor recall already-posted Discord messages.
+
+## Live penalties and break confirmation (0.2.5)
+
+The launcher reads the ACC-layout `acpmf_graphics.penaltyTime` field and reports positive observations during stages and at finish. The server retains a monotonic observed penalty floor; a save reporting a lower penalty is rejected for administrator review, not an automatic cheating accusation. Unsupported/zero telemetry remains unknown. Save confirmation is polled every 250 ms and attempted in the same cycle as stage finish. A service checkpoint now requires official results for all completed stages, preventing a confirmed break with still-missing penalties. New protocol rallies require launcher 0.2.5 at stage start; running legacy attempts retain their timing behavior.
+
+Telemetry field availability and semantics vary with game versions. Synthetic tests verify parsing and server rules; real-game runs with a known penalty and a service exit are still needed. A modified launcher can forge reports, so this is not cryptographic attestation.

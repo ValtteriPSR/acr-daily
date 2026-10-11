@@ -64,8 +64,9 @@ def main():
                 page.locator('#rally-stage-results summary').first.click()
                 page.locator('#driver-search').fill('Browser')
                 csrf=next(c['value'] for c in page.context.cookies() if c['name']=='acrclub_csrf')
-                store.start(driver,ev['id'],0,ev['allowedCars'][0],expected_settings(ev));store.stage_end(driver,ev['id'],0,60000,expected_settings(ev))
+                store.start(driver,ev['id'],0,ev['allowedCars'][0],expected_settings(ev));store.stage_end(driver,ev['id'],0,60000,expected_settings(ev),12500)
                 page.locator('#rally-stage-results td.mono').first.wait_for(state='visible',timeout=12000)
+                assert '+00:12.500' in page.locator('#rally-stage-results').inner_text()
                 assert page.locator('#rally-stage-results details[open]').count()==1
                 assert page.locator('#driver-search').input_value()=='Browser'
                 assert next(c['value'] for c in page.context.cookies() if c['name']=='acrclub_csrf')==csrf

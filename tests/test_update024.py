@@ -59,7 +59,7 @@ class UpdateStoreTests(unittest.TestCase):
     def test_cannot_submit_without_telemetry(self):
         with self.assertRaises(Fault):updates.stage_result(self.s,self.token,self.record(0))
     def test_checkpoint_private_bounded_and_progress_locked(self):
-        self.finish(0);data=self.payload();answer=updates.checkpoint(self.s,self.token,data)
+        self.finish(0);updates.stage_result(self.s,self.token,self.record(0));data=self.payload();answer=updates.checkpoint(self.s,self.token,data)
         fetched=updates.checkpoint(self.s,self.token);self.assertEqual(fetched['digest'],answer['digest']);self.assertEqual(gzip.decompress(base64.b64decode(fetched['save'])),b'player-specific-save')
         other=self.s.join(self.ev['id'],'BB')['token']
         with self.assertRaises(Fault):updates.checkpoint(self.s,other)
@@ -68,7 +68,7 @@ class UpdateStoreTests(unittest.TestCase):
         self.s.start(self.token,self.ev['id'],1,self.car,self.report)
         with self.assertRaises(Fault):updates.checkpoint(self.s,self.token)
     def test_checkpoint_rejects_decompression_bomb(self):
-        self.finish(0)
+        self.finish(0);updates.stage_result(self.s,self.token,self.record(0))
         with self.assertRaises(Fault):updates.checkpoint(self.s,self.token,self.payload(b'x'*(updates.MAX_SAVE+1)))
     def test_pause_forbidden_without_service_or_in_one_sitting(self):
         self.finish(0)

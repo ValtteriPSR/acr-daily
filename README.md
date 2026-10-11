@@ -1,4 +1,4 @@
-# ACR Rally Club 0.2.4
+# ACR Rally Club 0.2.5
 
 A web-based rally club for Assetto Corsa Rally, based on
 [ACR Daily](https://github.com/khanhonthetrack/acr-daily). Manage rallies,

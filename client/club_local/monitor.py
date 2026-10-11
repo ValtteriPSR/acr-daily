@@ -22,6 +22,7 @@ import urllib.request
 from acr_daily import rallyweekend, rallyclub, saveslot, telemetry
 from acr_daily.names import same_car
 from . import integrity
+from . import live_penalties
 from .version import VERSION as CLIENT_VERSION
 
 
@@ -123,7 +124,7 @@ class AttemptMonitor:
         self.event = event
         self.nickname = nickname
         self.emit = emit
-        self.source = source if source is not None else telemetry.SharedMemory()
+        self.source = source if source is not None else live_penalties.SharedMemory()
         self.catalog = load_catalog()
         if event.get('launcherProtocol')=='0.2.4':
             self.catalog = api.call('/api/catalog')['cars']
@@ -150,6 +151,12 @@ class AttemptMonitor:
         self.last_save_poll = 0.0
         self.last_final_try = 0.0
         self.confirmed_stages = set()
+        self.penalty_peak = None
+        self.penalty_origin = None
+        self.startline_penalty = None
+        self.last_finished_telemetry = None
+        self.last_penalty_report = -1.0
+        self.reported_penalty = None
         self.game_seen = False
         self.next_game_check=0.0
         self.checkpoint_sent = False
@@ -266,10 +273,17 @@ class AttemptMonitor:
             self.emit('Serwer zablokował start: ' + str(exc))
             return
         self.status = 'active'
+        self.penalty_peak = None
+        value=getattr(f,'penalty_ms',None)
+        self.penalty_origin=self.startline_penalty if self.startline_penalty is not None else (value if type(value) is int and 0<=value<=3600000 else None)
+        self.startline_penalty=None
+        self.last_finished_telemetry = None
+        self.reported_penalty = None
         self.chosen_car = car
         self.stage_started = time.time()
         self.highwater = f.clock_ms
         self.active_track = f.track
+        self._observe_live_penalty(f,time.monotonic())
         self.last_frame_at = time.monotonic()
         self.emit(f'START OS {self.stage_index+1}: {stage["stageId"]} | {car} | pierwsza próba zajęta na serwerze')
 
@@ -291,14 +305,21 @@ class AttemptMonitor:
         if not self._check_integrity(time.monotonic(), force=True):
             return
         index = self.stage_index
-        self.emit(f'META TELEMETRYCZNA OS {index + 1}: timer {self.highwater/1000:.3f}s; czas jest już na stronie; sprawdzam zapis gry')
+        self.emit(f'META TELEMETRYCZNA OS {index + 1}: timer {self.highwater/1000:.3f}s; wysyłam czas i odczytane kary na serwer')
         try:
             outcome = self.api.call('/api/stage-end', {'eventId':self.event['id'],
-                 'stageIndex':index,'clockMs':int(self.highwater),'settings':self._integrity_report})
+                 'stageIndex':index,'clockMs':int(self.highwater),'settings':self._integrity_report,
+                 'penaltyMs':self.penalty_peak})
         except ApiError as exc:
             self._server_dnf('Serwer odrzucił zamknięcie OS-u: '+str(exc))
             return
         self.status = outcome['status']
+        if self.penalty_peak:
+            self.emit(f'OS {index+1}: serwer zapisał karę telemetryczną +{self.penalty_peak/1000:.3f}s; oczekuję na oficjalny zapis gry')
+        else:
+            self.emit(f'OS {index+1}: brak dodatniej kary w telemetrii nie potwierdza zera kar; oczekuję na oficjalny zapis gry')
+        self.last_finished_telemetry = (index,int(self.highwater),self.active_track,self.chosen_car)
+        self.reported_penalty = self.penalty_peak
         self.stage_index = outcome['nextStage']
         self.prev_clock = 0
         self.highwater = 0
@@ -313,11 +334,46 @@ class AttemptMonitor:
             self.emit('Wszystkie OS-y ukończone; oczekuję na pełen zapis oficjalnych czasów i kar z ACR')
         else:
             self.emit('OS potwierdzony telemetrycznie; przejdź w grze do kolejnego OS-u')
+        # Do not wait for the next poll/next stage to submit a save already available.
+        self.last_final_try = -1.0
+        self._finalize_if_available(time.monotonic())
+
+    def _observe_live_penalty(self, frame, now):
+        if frame is None: return
+        value=getattr(frame,'penalty_ms',None)
+        if type(value) is not int or not 0<=value<=3600000: return
+        if self.status in ('registered','ready') and frame.clock_ms==0:
+            self.startline_penalty=value
+            return
+        if self.status=='active':
+            if frame.track!=self.active_track or not car_by_telemetry(frame.car,[self.chosen_car],self.catalog): return
+            if self.penalty_origin is None:
+                self.penalty_origin=value
+                return
+            if value<self.penalty_origin: self.penalty_origin=0
+            value=max(0,value-self.penalty_origin)
+            if value>(self.penalty_peak or 0):
+                self.heartbeat_at=0
+                self.emit(f'TELEMETRIA OS {self.stage_index+1}: kara +{value/1000:.3f}s')
+            self.penalty_peak=max(value,self.penalty_peak or 0)
+            return
+        if not self.last_finished_telemetry or self.status not in ('ready','awaiting_results'): return
+        idx,clock,track,car=self.last_finished_telemetry
+        if frame.clock_ms!=clock or frame.track!=track or not car_by_telemetry(frame.car,[car],self.catalog): return
+        if self.penalty_origin is None: return
+        value=max(0,value-self.penalty_origin)
+        if value<= (self.reported_penalty or 0) or now-self.last_penalty_report<0.5: return
+        self.last_penalty_report=now
+        try:
+            self.api.call('/api/telemetry-penalty',{'stageIndex':idx,'clockMs':clock,'penaltyMs':value})
+            self.reported_penalty=value
+        except ApiError as exc:
+            self.emit('Nie potwierdzono kary z telemetrii: '+str(exc))
 
     def _finalize_if_available(self, now):
         if not self._check_integrity(now):
             return
-        if now - self.last_final_try < 1.0:
+        if now - self.last_final_try < 0.25:
             return
         self.last_final_try = now
         if self.final_timeout_started is not None and now - self.final_timeout_started > 300:
@@ -381,6 +437,8 @@ class AttemptMonitor:
         now = time.monotonic()
         if not self._check_integrity(now):
             return
+        f = self.source.read()
+        self._observe_live_penalty(f,now)
         if self.stage_index and self.status!='active':
             self._finalize_if_available(now)
         if self.status == 'awaiting_results' or self.dead:
@@ -392,13 +450,13 @@ class AttemptMonitor:
             if self.game_seen and not running and self.status=='ready':
                 self._exit_at_service(now)
                 return
-        f = self.source.read()
         unloaded = getattr(self.source, 'unloaded', False)
         if self.status == 'active':
             if now >= self.heartbeat_at:
                 try:
                     self.api.call('/api/heartbeat', {'eventId': self.event['id'],
-                                  'stageIndex': self.stage_index,'settings':self._integrity_report})
+                                  'stageIndex': self.stage_index,'settings':self._integrity_report,
+                                  'penaltyMs':self.penalty_peak})
                     self.failed_net = None
                 except ApiError as exc:
                     if self.failed_net is None:
@@ -468,6 +526,9 @@ class AttemptMonitor:
             return
         if self.checkpoint_sent or now-self.checkpoint_try<3.0: return
         self.checkpoint_try=now
+        if any(idx not in self.confirmed_stages for idx in range(self.stage_index)):
+            self.emit('PRZERWA NIEZATWIERDZONA: czekam na oficjalne czasy i kary ukończonych OS-ów. Nie zamykaj launchera. Pozwól grze zapisać wyniki na ekranie wyników lub na serwisie przed wyjściem.')
+            return
         try:
             raw=Path(saveslot.SAVE).read_bytes()
             from .integrity_rules import compare

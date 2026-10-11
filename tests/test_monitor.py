@@ -50,8 +50,11 @@ class FakeApi:
     def call(self, endpoint, data=None):
         if endpoint=='/api/me':return self.store.state(self.token)
         if endpoint=='/api/start':return self.store.start(self.token,data['eventId'],data['stageIndex'],data['carId'],data.get('settings'))
-        if endpoint=='/api/heartbeat':return self.store.heartbeat(self.token,data['eventId'],data['stageIndex'],data.get('settings'))
-        if endpoint=='/api/stage-end':return self.store.stage_end(self.token,data['eventId'],data['stageIndex'],data['clockMs'],data.get('settings'))
+        if endpoint=='/api/heartbeat':return self.store.heartbeat(self.token,data['eventId'],data['stageIndex'],data.get('settings'),data.get('penaltyMs'))
+        if endpoint=='/api/stage-end':return self.store.stage_end(self.token,data['eventId'],data['stageIndex'],data['clockMs'],data.get('settings'),data.get('penaltyMs'))
+        if endpoint=='/api/telemetry-penalty':
+            import attempt_updates
+            return attempt_updates.late_penalty(self.store,self.token,data)
         if endpoint=='/api/stage-result':
             import attempt_updates
             return attempt_updates.stage_result(self.store,self.token,data)
@@ -156,6 +159,7 @@ class MonitorTests(TestCase):
         self.step(0.0,frame(0));self.step(0.1,frame(500));self.step(0.3,frame(203452))
         self.step(0.8,frame(203452,0));self.step(2.3,frame(203452,5))
         self.assertEqual(self.mon.status,'ready')
+
         rows=[{'stage':self.ev['stages'][0]['stageId'],'started':time.time()-5,
                'runs':[{'car':'VWPoloGTIR5','time':203.452,'penalty':34.0}]}]
         self.save.write_text(json.dumps(rows));self.step(4.0,None)
@@ -163,6 +167,48 @@ class MonitorTests(TestCase):
         self.assertTrue(board['stageResults'][0]['verified'])
         self.assertEqual(board['stageResults'][0]['total_ms'],237452)
         self.assertEqual(self.mon.status,'ready')
+
+    def test_penalties_at_finish_are_sent_without_a_game_save(self):
+        start=frame(0);start.penalty_ms=0
+        self.step(0,start);self.step(.1,frame(500))
+        f=frame(203452);f.penalty_ms=34000
+        self.step(.3,f);self.step(.8,f)
+        f=frame(203452,5);f.penalty_ms=34000
+        self.step(2.3,f)
+        row=self.store.board(self.ev['id'])['stageResults'][0]
+        self.assertFalse(row['verified']);self.assertEqual(row['penalty_ms'],34000)
+        self.assertEqual(row['total_ms'],237452)
+        f.penalty_ms=36000;self.step(2.9,f)
+        self.assertEqual(self.store.board(self.ev['id'])['stageResults'][0]['penalty_ms'],36000)
+        f.penalty_ms=0;self.step(3.5,f)
+        self.assertEqual(self.store.board(self.ev['id'])['stageResults'][0]['penalty_ms'],36000)
+
+    def test_save_available_at_finish_is_confirmed_in_same_poll(self):
+        self.step(0,frame(0));self.step(.1,frame(500));self.step(.3,frame(203452));self.step(.8,frame(203452))
+        self.save.write_text(json.dumps([{'stage':self.ev['stages'][0]['stageId'],'started':time.time()-5,
+            'runs':[{'car':'VWPoloGTIR5','time':203.452,'penalty':34.0}]}]))
+        self.step(2.3,frame(203452,5))
+        self.assertTrue(self.store.board(self.ev['id'])['stageResults'][0]['verified'])
+
+    def test_cumulative_field_counts_only_penalty_added_in_this_stage(self):
+        start=frame(0);start.penalty_ms=34000
+        self.step(0,start)
+        running=frame(500);running.penalty_ms=34000
+        self.step(.1,running)
+        finish=frame(203452);finish.penalty_ms=70000
+        self.step(.3,finish);self.step(.8,finish)
+        finish.x=5;self.step(2.3,finish)
+        self.assertEqual(self.store.board(self.ev['id'])['stageResults'][0]['penalty_ms'],36000)
+
+    def test_exit_does_not_send_unconfirmed_checkpoint(self):
+        self.mon.event={**self.ev,'launcherProtocol':'0.2.4','allowBreaks':True,
+            'stages':[self.ev['stages'][0],{**self.ev['stages'][1],'serviceBefore':True}]}
+        self.mon.stage_index=1;self.mon.status='ready'
+        with mock.patch.object(self.api,'call',wraps=self.api.call) as call:
+            self.mon._exit_at_service(10)
+            self.assertFalse(any(c.args[0]=='/api/checkpoint' for c in call.call_args_list))
+        self.assertFalse(self.mon.checkpoint_sent)
+        self.assertTrue(any('NIEZATWIERDZONA' in line for line in self.log))
 
 if __name__=='__main__':
     import unittest;unittest.main()

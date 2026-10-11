@@ -21,10 +21,10 @@ If RUN cannot prepare the Rally Weekend save, first create any Rally Weekend in 
 
 Check the policy in **Conditions**:
 
-- **Breaks allowed:** exit only at service before the next SS. Wait for the launcher to confirm that your personal save copy reached the server; then close the launcher. Use RUN again to restore that copy and resume. If no server checkpoint exists, only the original local save and session can be used, provided they remain valid.
+- **Breaks allowed:** exit only at service before the next SS. Wait for the launcher to confirm that your personal save copy reached the server; then close the launcher. Use RUN again to restore that copy and resume. A break is not confirmed until official results, including penalties, for every completed stage are stored on the server. Leave the results screen/service open to allow the game to save, and keep the launcher open until confirmation. If confirmation is missing, do not edit the save or assume that you can resume.
 - **One sitting:** keep both game and launcher open throughout the rally. Closing either between stages prevents continuation and results in DNF.
 - In both modes, pausing an SS or staying at service for hours is allowed while the game and launcher remain open and connected. Leaving during an active stage, restarting or retiring means DNF.
 
-Each stage has one attempt. Times appear after every SS; telemetry times are clearly provisional. Penalties and save-confirmed times appear when ACR persists them. Final points require FINISH and are calculated after the rally closes. The page refreshes results every five seconds and preserves opened stage details.
+Each stage has one attempt. Times appear after every SS; telemetry times are clearly provisional. Positive penalties read from supported telemetry appear immediately with the provisional stage time. Zero/unsupported telemetry is not proof of no penalties. Official save-confirmed times appear as soon as ACR persists them, without waiting for the next stage. Final points require FINISH and are calculated after the rally closes. The page refreshes results every five seconds and preserves opened stage details.
 
 Dates use fixed UTC+2. If RUN opens nothing, rerun the installer and allow external application links. To recover your account, sign in with the same Steam account. Logs are at `%LOCALAPPDATA%\ACR Rally Club\player-events.log`; review them before sharing.
