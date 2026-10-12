@@ -226,7 +226,7 @@ class WebLaunchWindow:
                 self.log('Wznawiam przed kolejnym OS-em z '+('kopii serwera.' if restored is not None else 'oryginalnego lokalnego zapisu Club.'))
             integrity.read_and_check(event)
             self.log('Kontrola zasad i kalendarza Rally Weekend: OK')
-            monitor=AttemptMonitor(api,event,nickname,self.log,baseline=baseline)
+            monitor=AttemptMonitor(api,event,nickname,self.log,baseline=baseline,catalog=catalog['cars'])
             monitor.resume()
             if monitor.dead:
                 raise RuntimeError('Próba zablokowana przez serwer')

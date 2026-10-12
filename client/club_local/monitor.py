@@ -119,14 +119,14 @@ class Api:
 
 class AttemptMonitor:
     """Single-thread worker. Call poll() approx 5-20 times per second."""
-    def __init__(self, api, event, nickname, emit, source=None, baseline=None):
+    def __init__(self, api, event, nickname, emit, source=None, baseline=None, catalog=None):
         self.api = api
         self.event = event
         self.nickname = nickname
         self.emit = emit
         self.source = source if source is not None else live_penalties.SharedMemory()
-        self.catalog = load_catalog()
-        if event.get('launcherProtocol')=='0.2.4':
+        self.catalog = catalog if catalog is not None else load_catalog()
+        if catalog is None and event.get('launcherProtocol')=='0.2.4':
             self.catalog = api.call('/api/catalog')['cars']
         self.baseline = baseline if baseline is not None else self.read_baseline()
         self.stage_index = None

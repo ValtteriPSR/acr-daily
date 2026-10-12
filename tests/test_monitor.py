@@ -267,5 +267,16 @@ class MonitorTests(TestCase):
         self.assertTrue(any(line.startswith('OSTRZEŻENIE:') for line in self.log))
         self.assertFalse(self.store.state(self.token)['results'])
 
+    def test_legacy_rally_uses_current_server_catalog_when_passed_by_web_run(self):
+        self.ev['allowedCars']=['NewServerCar']
+        self.store.db.execute('UPDATE events SET config=? WHERE id=?',(json.dumps(self.ev),self.ev['id']))
+        catalog=[{'id':'NewServerCar','name':'New server car','telemetry':'New car telemetry'}]
+        self.mon=monitor.AttemptMonitor(self.api,self.ev,'Driver',self.log.append,source=self.src,catalog=catalog)
+        self.mon.resume()
+        f=frame(0);f.car='New car telemetry';self.step(0,f)
+        f=frame(500);f.car='New car telemetry';self.step(.1,f)
+        self.assertEqual(self.store.state(self.token)['car_id'],'NewServerCar')
+        self.assertEqual(self.store.state(self.token)['status'],'active')
+
 if __name__=='__main__':
     import unittest;unittest.main()
