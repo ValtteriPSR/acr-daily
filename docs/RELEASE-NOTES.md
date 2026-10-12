@@ -1,3 +1,13 @@
+## ACR Rally Club 0.2.8
+
+- Save copies are stored only after a confirmed non-final stage. Before SS1, RUN rebuilds the canonical event configuration without uploading a save. The final stage removes the previous resume copy.
+- Copies for closed rallies expire automatically while the service runs (30-second sweep), on wake/listing requests and before checkpoint access. Results and standings remain. Free-host sleeping services perform cleanup when they wake.
+- Each copy is bound to an event-specific participant ID, event ID and next-stage index. Identity mismatch triggers a second authenticated fetch before any local replacement. Tests cover overlapping rally A → B → A with independent damage/progress.
+- RUN can contact an already running Windows EXE through an authenticated local named pipe and ask for confirmation before restarting it. No pickle payloads, no arbitrary commands. Active stages, open ACR and one-sitting continuation block the restart. Older EXEs must be closed manually.
+- Wrong-class or changed cars before an allowed next-stage start trigger yellow recovery instead of consuming a stage. A correctly started stage still has one attempt. During-stage tampering and restart/quit rules remain enforced.
+- DNF includes the affected stage number. Link text is underlined, expandable sections have visible outlines, and the orange accent is now #ff7038.
+- Regression tests cover expiry, no first/final-stage saves, multi-rally restore, identity retry, wrong-class warning, DNF stage and bounded local RUN messages. The frozen Windows EXE self-test exercises the actual authenticated named pipe. Actual ACR behavior still requires game testing.
+
 ## ACR Rally Club 0.2.7
 
 - Settings mistakes outside an active stage in a continuation rally preserve the attempt and trigger a persistent yellow restore-with-RUN warning. New starts, official submissions and checkpoint replacement are blocked until a verified restore.

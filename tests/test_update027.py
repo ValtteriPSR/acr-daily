@@ -31,9 +31,9 @@ class RecoveryTests(unittest.TestCase):
         self.assertFalse(state['results'])
         with self.assertRaises(Fault):self.s.start(self.token,self.ev['id'],0,self.car,self.report)
         data={**self.payload(b'canonical-first-start'),'stageIndex':0}
-        updates.checkpoint(self.s,self.token,data,recovery=True)
+        with self.assertRaises(Fault):updates.checkpoint(self.s,self.token,data,recovery=True)
         with self.assertRaises(Fault):updates.recovery_ack(self.s,self.token,{'digest':'wrong','settings':self.report})
-        updates.recovery_ack(self.s,self.token,{'digest':data['digest'],'settings':self.report})
+        updates.recovery_ack(self.s,self.token,{'settings':self.report})
         self.assertEqual(self.s.start(self.token,self.ev['id'],0,self.car,self.report)['status'],'active')
 
     def test_after_os1_restore_preserves_results_penalties_and_progress(self):
@@ -80,6 +80,8 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(self.s.state(self.token)['status'],'dnf')
         token=self.s.join(self.ev['id'],'Second')['token']
         cfg={**self.ev,'allowBreaks':False};self.s.db.execute('UPDATE events SET config=? WHERE id=?',(json.dumps(cfg),self.ev['id']))
+        self.s.start(token,self.ev['id'],0,self.car,self.report)
+        self.s.stage_end(token,self.ev['id'],0,60000,self.report)
         self.s.integrity_violation(token,'Settings changed')
         self.assertEqual(self.s.state(token)['status'],'dnf')
 

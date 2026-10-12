@@ -67,8 +67,9 @@ class WebLauncherUnit(unittest.TestCase):
         self.assertEqual(state['status'],'registered')
         with self.assertRaises(Fault):
             redeem_ticket(self.store,ticket)
-        with self.assertRaises(Fault):
-            mint_ticket(self.store,cookie,self.event['id'])
+        fresh=mint_ticket(self.store,cookie,self.event['id'])
+        self.assertNotEqual(fresh,ticket)
+        with self.assertRaises(Fault):mint_ticket(self.store,cookie,self.event['id'])
 
     def test_ticket_timeout(self):
         cookie=enroll(self.store,self.event['id'],'Expired')

@@ -21,6 +21,7 @@ MODULES = (
     "club_local.live_penalties",
     "club_local.checkpoint_restore",
     "club_local.web_launch",
+    "club_local.launcher_control",
     "club_local.web_install",
     "club_local.version",
 )

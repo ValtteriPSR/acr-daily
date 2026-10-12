@@ -43,8 +43,13 @@ def recovery_ack(store,token,data):
     from server import Fault
     with store.lock:
         p=store._auth(token);_,ev=store.event(p['event_id'])
-        if p['status'] not in ('registered','ready') or not ev.get('allowBreaks',True):
+        if p['status'] not in ('registered','ready') or (p['status']=='ready' and not ev.get('allowBreaks',True)):
             raise Fault(409,'Recovery is not allowed during an active stage')
+        if p['status']=='registered' and p['stage_index']==0:
+            if data.get('digest') is not None or compare_settings(ev,data.get('settings')):
+                raise Fault(409,'Restore the canonical first-stage settings before RUN')
+            store.db.execute('DELETE FROM rally_recovery WHERE player_id=?',(p['id'],))
+            return {'ok':True}
         row=store.db.execute('SELECT digest FROM rally_checkpoints WHERE player_id=? AND stage_index=?',(p['id'],p['stage_index'])).fetchone()
         if not row or data.get('digest')!=row['digest'] or compare_settings(ev,data.get('settings')):
             raise Fault(409,'Restore the latest confirmed Club copy before RUN')
@@ -138,9 +143,13 @@ def stage_result(store,token,data):
 def checkpoint(store,token,data=None,*,recovery=False):
     from server import Fault
     with store.lock:
+        store._sweep()
         p=store._auth(token);_,ev=store.event(p['event_id'])
+        row,_=store.event(p['event_id'])
+        if time.time()>row['closes']:
+            raise Fault(409,'The rally has ended; its save copies have expired')
         idx=p['stage_index']
-        allowed=(p['status'] in ('registered','ready') and 0<=idx<len(ev['stages']) and ev.get('allowBreaks',True)) if recovery else (p['status']=='ready' and ev.get('allowBreaks',True) and ev['stages'][idx].get('serviceBefore',False))
+        allowed=p['status']=='ready' and 0<idx<len(ev['stages']) and ev.get('allowBreaks',True) and (recovery or ev['stages'][idx].get('serviceBefore',False))
         if not allowed:
             raise Fault(409,'Resume is allowed only at a service before the next stage')
         count=store.db.execute('SELECT COUNT(*) FROM results WHERE player_id=? AND stage_index<?',(p['id'],idx)).fetchone()[0]
@@ -150,7 +159,7 @@ def checkpoint(store,token,data=None,*,recovery=False):
             row=store.db.execute('SELECT * FROM rally_checkpoints WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
             if not row: return {'available':False}
             return {'available':True,**json.loads(row['payload']),'digest':row['digest'],'stageIndex':idx,'playerId':p['id'],'eventId':p['event_id']}
-        if recovery_state(store,p['id'])['recoveryRequired'] and not (recovery and p['status']=='registered' and idx==0):
+        if recovery_state(store,p['id'])['recoveryRequired']:
             raise Fault(409,'Settings recovery is required; the last valid copy is protected')
         if data.get('stageIndex')!=idx or compare_settings(ev,data.get('settings')): raise Fault(409,'Checkpoint settings or progress do not match the rally')
         packed=data.get('save');baseline=data.get('baseline')

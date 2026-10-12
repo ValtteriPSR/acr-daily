@@ -258,6 +258,7 @@ class Store:
 
     def listing(self):
         with self.lock:
+            self._sweep()
             return [json.loads(r[0]) for r in self.db.execute('SELECT config FROM events ORDER BY opens DESC')]
 
     def _sweep(self):
@@ -267,6 +268,11 @@ class Store:
         self.db.execute("UPDATE players SET status='dnf',\n             terminal_reason='Client connection lost after stage start',\n             started=NULL WHERE status='active' AND last_seen < ?", (now - self.inactive,))
 
         self.db.execute("DELETE FROM rally_checkpoints WHERE player_id IN (SELECT id FROM players WHERE status IN ('dnf','completed'))")
+        self.db.execute('''DELETE FROM rally_checkpoints WHERE stage_index=0 OR player_id IN
+          (SELECT p.id FROM players p JOIN events e ON e.id=p.event_id WHERE e.closes<=?)''',(now,))
+        self.db.execute('''DELETE FROM rally_recovery WHERE player_id IN
+          (SELECT p.id FROM players p JOIN events e ON e.id=p.event_id
+           WHERE e.closes<=? OR p.status IN ('dnf','completed'))''',(now,))
 
     def _auth(self, token):
         if not isinstance(token, str) or len(token) < 40:
@@ -314,6 +320,7 @@ class Store:
             d = {k: player[k] for k in ('nickname', 'status', 'stage_index', 'car_id', 'terminal_reason')}
             d.update({'event': config, 'results': [dict(e) for e in entries]})
             d.update(attempt_updates.recovery_state(self,player['id']))
+            d['dnfStage']=min(player['stage_index']+1,len(config['stages'])) if player['status']=='dnf' else None
             return d
 
     def _integrity_or_dnf(self, player, event, settings):
@@ -321,7 +328,7 @@ class Store:
         problems = compare_settings(event, settings)
         if problems:
             reason = tr('Rally Weekend settings changed: ') + '; '.join(problems[:3])
-            if player['status'] in ('registered','ready') and event.get('allowBreaks',True):
+            if player['status']=='registered' or (player['status']=='ready' and event.get('allowBreaks',True)):
                 attempt_updates.require_recovery(self,player,reason)
                 return reason
             self.db.execute("UPDATE players SET status='dnf',terminal_reason=?,started=NULL WHERE id=?",
@@ -339,7 +346,7 @@ class Store:
                     raise Fault(409, tr('The rally has already ended'))
                 msg = (tr('Rally Weekend settings mismatch: ') + str(reason))[:300]
                 _,event=self.event(p['event_id'])
-                if p['status'] in ('registered','ready') and event.get('allowBreaks',True):
+                if p['status']=='registered' or (p['status']=='ready' and event.get('allowBreaks',True)):
                     out=attempt_updates.require_recovery(self,p,msg)
                     self.db.execute('COMMIT')
                     return out
@@ -372,8 +379,14 @@ class Store:
                 if stage_index < 0 or stage_index >= len(config['stages']):
                     raise Fault(400, tr('Invalid stage number'))
                 if car_id not in config['allowedCars']:
+                    if p['status']=='registered' or config.get('allowBreaks',True):
+                        attempt_updates.require_recovery(self,p,'Car is outside the rally class; close the game and EXE launcher, then RUN again')
+                        self.db.execute('COMMIT')
                     raise Fault(409, tr('Car is outside the rally class'))
                 if p['car_id'] is not None and p['car_id'] != car_id:
+                    if config.get('allowBreaks',True):
+                        attempt_updates.require_recovery(self,p,'Restore the car selected on SS1 with RUN')
+                        self.db.execute('COMMIT')
                     raise Fault(409, tr('Changing cars during the rally is not allowed'))
                 reason = self._integrity_or_dnf(p, config, settings)
                 if reason:
@@ -440,6 +453,8 @@ class Store:
                   VALUES(?,?,?,?)''', (p['id'], index, clock_ms, now))
                 next_index = index + 1
                 finished_all = next_index == len(config['stages'])
+                if finished_all:
+                    self.db.execute('DELETE FROM rally_checkpoints WHERE player_id=?',(p['id'],))
                 self.db.execute('''UPDATE players SET status=?,stage_index=?,started=NULL,
                   last_seen=? WHERE id=?''', ('awaiting_results' if finished_all else 'ready',next_index,now,p['id']))
                 self.db.execute('COMMIT')
@@ -532,6 +547,7 @@ class Store:
             players=[dict(p) for p in players]
             for p in players:
                 p.update(attempt_updates.recovery_state(self,p['id']))
+                p['dnfStage']=min(p['stage_index']+1,len(event['stages'])) if p['status']=='dnf' else None
                 rows=[r for r in stage_results if r['player_id']==p['id']]
                 p['live_total']=sum(r['total_ms'] for r in rows)
                 p['pending_stages']=sum(not r['verified'] for r in rows)
@@ -610,7 +626,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     content+='<div id="rally-recovery-warning">'
     warned=[p for p in data['players'] if p.get('recoveryRequired')]
     if warned:
-        content+='<div class="recovery-warning" role="status">'+escape(tr('Settings changed outside a stage. Your attempt is preserved. Close the game and launcher, then click RUN to restore your last valid Club save. No times are accepted until recovery.'))+'<br>'+escape(', '.join(p['nickname'] for p in warned))+'</div>'
+        content+='<div class="recovery-warning" role="status">'+escape(tr('Configuration or car does not match the rally. Your attempt is preserved. Close ACR and the launcher EXE before RUN. If the EXE is still open, confirm its restart in the dialog. No times are accepted until recovery.'))+'<br>'+escape(', '.join(p['nickname'] for p in warned))+'</div>'
     content+='</div>'
     content+=tr('<section class="card"><span class="section-kicker">Driver area</span><h2>Your entry</h2>')
     if csrf:
@@ -654,6 +670,8 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
             label=tr('RESTORE WITH RUN')
             status_css='status-warning'
         status_text=label+((' · '+str(p['terminal_reason'])[:100]) if p['status']=='dnf' and p.get('terminal_reason') else '')
+        if p.get('dnfStage'):
+            status_text='DNF · '+tr('SS ')+str(p['dnfStage'])+((' · '+str(p['terminal_reason'])[:100]) if p.get('terminal_reason') else '')
         result=format_ms(p.get('live_total',p['total'])) if p['stage_index'] else '—'
         if p.get('pending_stages'): result+=' · '+tr('Provisional')
         content+=('<tr data-driver="'+escape(p['nickname'],quote=True)+'"><td class="rank-col">'+str(i)+'</td><td><strong>'+escape(p['nickname'])+'</strong></td>'
@@ -1250,8 +1268,8 @@ def make_handler(store, admin=None, catalog_root=None):
                     with store.lock:
                         actor=store._auth(self._token());_,ev=store.event(actor['event_id'])
                         v=self.headers.get('X-ACR-Launcher-Version','')
-                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,7)):
-                            raise Fault(426,'Install the latest 0.2.7 launcher from /download for this rally')
+                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,8)):
+                            raise Fault(426,'Install the latest 0.2.8 launcher from /download for this rally')
                     out = store.start(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('carId'), data.get('settings'))
                 elif path == '/api/heartbeat':
                     self._client_version()
@@ -1322,11 +1340,20 @@ def main():
     notifier = discord_notifications.Worker(store) if os.environ.get('ACR_DISCORD_NOTIFIER', '1') != '0' else None
     if notifier:
         notifier.start()
+    cleanup_stop=threading.Event()
+    def expire_save_copies():
+        while not cleanup_stop.wait(30):
+            try:
+                with store.lock:store._sweep()
+            except Exception as exc:
+                print('Save cleanup retry:',type(exc).__name__,flush=True)
+    threading.Thread(target=expire_save_copies,daemon=True).start()
     try:
         server.serve_forever(poll_interval=.5)
     except KeyboardInterrupt:
         print('\nBye')
     finally:
+        cleanup_stop.set()
         server.server_close()
         if notifier:
             notifier.stop()

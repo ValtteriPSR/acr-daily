@@ -201,7 +201,7 @@ class AttemptMonitor:
     def _server_dnf(self, reason):
         if self.status != 'active':
             return
-        self.emit('DNF: ' + reason)
+        self.emit(f'DNF · OS {min(self.stage_index+1,len(self.event["stages"]))}: ' + reason)
         try:
             self.api.call('/api/dnf', {'reason': reason})
         except ApiError as exc:
@@ -211,7 +211,7 @@ class AttemptMonitor:
 
     def _reject_integrity(self, reason):
         reason = str(reason)[:250]
-        self.emit('DNF — niezgodne ustawienia Rally Weekend: ' + reason)
+        self.emit(f'DNF · OS {min(self.stage_index+1,len(self.event["stages"]))} — niezgodne ustawienia Rally Weekend: ' + reason)
         try:
             self.api.call('/api/integrity-violation', {'reason':reason})
         except ApiError as exc:
@@ -222,7 +222,7 @@ class AttemptMonitor:
     def _request_recovery(self,reason):
         self.recovery_required=True
         if not self.recovery_notified:
-            self.emit('OSTRZEŻENIE: zmienione lub nieczytelne ustawienia Rally Weekend. Podejście zachowane; czasy nie będą wysyłane. Zamknij grę i launcher, następnie kliknij RUN na stronie, aby przywrócić ostatni poprawny zapis Club. '+str(reason))
+            self.emit('OSTRZEŻENIE: niezgodna konfiguracja Rally Weekend lub samochód. Podejście zachowane; czasy nie będą wysyłane. Zamknij grę ORAZ program EXE launchera przed ponownym RUN na stronie. Jeśli EXE pozostanie otwarty, RUN poprosi o potwierdzenie restartu launchera. '+str(reason))
         try:
             self.api.call('/api/integrity-violation',{'reason':str(reason)[:250]})
             self.recovery_notified=True
@@ -230,7 +230,7 @@ class AttemptMonitor:
             self.emit('OSTRZEŻENIE: nie potwierdzono blokady na stronie; pozostaw launcher otwarty do odzyskania połączenia: '+str(exc))
 
     def _capture_recovery_copy(self,now):
-        if self.recovery_required or not self.event.get('allowBreaks',True) or self.status not in ('registered','ready') or now-self.snapshot_try<5.0:
+        if self.recovery_required or not self.event.get('allowBreaks',True) or self.status!='ready' or not 0<self.stage_index<len(self.event['stages']) or now-self.snapshot_try<5.0:
             return
         if any(idx not in self.confirmed_stages for idx in range(self.stage_index)):
             return
@@ -273,13 +273,13 @@ class AttemptMonitor:
             if msg!=self._integrity_last_message:
                 self.emit('NIEZGODNOŚĆ ustawień .sav: '+msg)
                 self._integrity_last_message=msg
-            if self.status in ('registered','ready') and self.event.get('allowBreaks',True):
+            if self.status=='registered' or (self.status=='ready' and self.event.get('allowBreaks',True)):
                 self._request_recovery(msg)
                 return False
             if self._integrity_mismatch_since is None:
                 self._integrity_mismatch_since = now
             elif now - self._integrity_mismatch_since >= 1.0:
-                if self.status in ('registered','ready') and self.event.get('allowBreaks',True):
+                if self.status=='registered' or (self.status=='ready' and self.event.get('allowBreaks',True)):
                     self._request_recovery(msg)
                 else: self._reject_integrity(msg)
             return False
@@ -289,7 +289,7 @@ class AttemptMonitor:
                 self._integrity_error_since=now
                 self.emit('Nie mogę odczytać ustawień .sav; wstrzymuję start: '+str(exc))
             elif now-self._integrity_error_since>=10.0:
-                if self.status in ('registered','ready') and self.event.get('allowBreaks',True):
+                if self.status=='registered' or (self.status=='ready' and self.event.get('allowBreaks',True)):
                     self._request_recovery('Brak możliwości weryfikacji ustawień przez ponad 10 s')
                 else: self._reject_integrity('Brak możliwości weryfikacji ustawień przez ponad 10 s')
             return False
@@ -305,10 +305,13 @@ class AttemptMonitor:
         self.emit('TELEMETRIA: nazwa samochodu = '+str(f.car))
         car = car_by_telemetry(f.car, self.event['allowedCars'], self.catalog)
         if not car:
-            self.emit('Zły lub nierozpoznany samochód: ' + str(f.car) + ' — próba nie jest zaliczana')
+            if self.status=='registered' or self.event.get('allowBreaks',True):
+                self._request_recovery('Samochód '+str(f.car)+' nie należy do listy dozwolonej klasy; przejazd nie został rozpoczęty na serwerze.')
+            else: self.emit('OSTRZEŻENIE: wybierz samochód dozwolonej klasy. W trybie jazdy na raz nie zamykaj gry ani launchera.')
             return
         if self.chosen_car and car != self.chosen_car:
-            self.emit('Auto różni się od wybranego na OS1 — start odrzucony')
+            if self.event.get('allowBreaks',True): self._request_recovery('Samochód różni się od wybranego na OS1; RUN przywróci właściwy zapis.')
+            else: self.emit('OSTRZEŻENIE: przywróć samochód z OS1 bez zamykania gry ani launchera w trybie jazdy na raz.')
             return
         stage = self.event['stages'][self.stage_index]
         # The official stage ID cannot be extracted from Shared Memory on all ACR stages.
@@ -435,7 +438,7 @@ class AttemptMonitor:
             from .integrity_rules import compare
             report=integrity.report_from_save(content)
             if compare(self.event,report):
-                if self.status in ('registered','ready') and self.event.get('allowBreaks',True):
+                if self.status=='registered' or (self.status=='ready' and self.event.get('allowBreaks',True)):
                     self._request_recovery('Zapis wyników ma inne ustawienia niż rajd')
                 else: self._reject_integrity('Zapis wyników ma inne ustawienia niż rajd')
                 return

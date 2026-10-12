@@ -21,6 +21,8 @@ def _report(raw):
 
 def restore(api,event,player_id,state,log):
     recovery=bool(state.get('recoveryRequired'))
+    if recovery and state['status']=='registered' and state['stage_index']==0:
+        return None  # Rebuild the canonical calendar; do not store a save before OS1.
     if state['status']!='ready' and not (recovery and state['status']=='registered'): return None
     idx=state['stage_index']
     if type(idx) is not int or not 0<=idx<len(event['stages']) or (idx==0 and not recovery):
@@ -41,7 +43,10 @@ def restore(api,event,player_id,state,log):
         log('Starszy rajd: brak kopii na serwerze. Wznowienie wymaga oryginalnego, niezmienionego lokalnego zapisu Club.')
         return None
     if checkpoint.get('playerId')!=player_id or checkpoint.get('eventId')!=event['id'] or checkpoint.get('stageIndex')!=idx:
-        raise RuntimeError('Kopia nie odpowiada temu graczowi, rajdowi lub OS-owi; zapis nie został zmieniony')
+        log('OSTRZEŻENIE: ID gracza, rajdu lub OS-u kopii nie zgadza się z RUN. Ponownie sprawdzam właściwą kopię; lokalny zapis pozostaje bez zmian.')
+        checkpoint=api.call('/api/recovery-checkpoint' if recovery else '/api/checkpoint')
+        if not checkpoint.get('available') or checkpoint.get('playerId')!=player_id or checkpoint.get('eventId')!=event['id'] or checkpoint.get('stageIndex')!=idx:
+            raise RuntimeError('Kopia nie odpowiada temu graczowi, rajdowi lub OS-owi; zamknij grę i launcher, następnie ponów RUN. Zapis nie został zmieniony')
     packed=checkpoint.get('save')
     if not isinstance(packed,str) or len(packed)>2*1024*1024*4//3+8:
         raise RuntimeError('Nieprawidłowy rozmiar kopii zapisu')

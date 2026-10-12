@@ -71,8 +71,9 @@ def single_instance_lock():
     if not handle:
         raise RuntimeError('Nie udało się utworzyć blokady launchera')
     if k32.GetLastError() == 183:
+        k32.CloseHandle.argtypes=[ctypes.c_void_p]
         k32.CloseHandle(handle)
-        raise RuntimeError('Launcher już działa. Przejdź do jego okna.')
+        return None
     return handle
 
 
@@ -84,6 +85,8 @@ class WebLaunchWindow:
         self.queue=queue.Queue()
         self.monitor=None
         self.finished=False
+        self.restart_link=None
+        self.preparation_ready=False
         root.title('ACR Rally Club V'+VERSION+' — start ze strony')
         root.geometry('720x450')
         root.minsize(540,320)
@@ -104,7 +107,8 @@ class WebLaunchWindow:
         root.protocol('WM_DELETE_WINDOW',self.close)
         self.log('Wersja launchera: '+VERSION+' · nawigacja w menu ACR: RĘCZNA')
         root.after(100,self.drain)
-        threading.Thread(target=self.prepare,daemon=True).start()
+        self.worker=threading.Thread(target=self.prepare,daemon=True)
+        self.worker.start()
 
     def log(self,msg):
         self.queue.put(('log',str(msg)))
@@ -131,12 +135,34 @@ class WebLaunchWindow:
                     self.text.configure(state='disabled')
                 elif kind=='navigation':
                     self.nav_notice.set(data)
+                elif kind=='restart':
+                    self.handle_run(data)
+                    if not self.running:return
                 else:
                     self.status.set(data)
         except queue.Empty:
             pass
         if self.running:
             self.root.after(120,self.drain)
+
+    def handle_run(self,link):
+        from .launcher_control import restart_problem
+        problem=restart_problem(self.monitor,saveslot.game_running(),preparing=not self.preparation_ready and not self.finished)
+        self.root.lift()
+        if problem:
+            messagebox.showwarning('ACR Rally Club — RUN',problem)
+            return
+        if not messagebox.askyesno('ACR Rally Club — restart EXE',
+                'Launcher EXE jest już otwarty. Czy zamknąć tę sesję i uruchomić launcher ponownie dla klikniętego RUN? Gra zostanie otwarta dopiero po sprawdzeniu rajdu i przywróceniu właściwego zapisu.'):
+            return
+        # Recheck after the dialog: never replace an attempt that became active.
+        problem=restart_problem(self.monitor,saveslot.game_running())
+        if problem:
+            messagebox.showwarning('ACR Rally Club — RUN',problem)
+            return
+        self.restart_link=link
+        self.running=False
+        self.root.destroy()
 
     def prepare(self):
         api=None
@@ -171,7 +197,7 @@ class WebLaunchWindow:
                 old={}
             restored=None
             if state['status']=='ready' or state.get('recoveryRequired'):
-                if not event.get('allowBreaks',True):
+                if state['status']=='ready' and not event.get('allowBreaks',True):
                     api.call('/api/integrity-violation',{'reason':'Próba wznowienia rajdu wymagającego jazdy na raz'})
                     raise RuntimeError('Rajd wymaga jazdy na raz; ponowne uruchomienie oznacza DNF')
                 restored=restore_club_checkpoint(api,event,player_id,state,self.log)
@@ -204,12 +230,8 @@ class WebLaunchWindow:
             monitor.resume()
             if monitor.dead:
                 raise RuntimeError('Próba zablokowana przez serwer')
-            if state['status']=='registered' and event.get('allowBreaks',True):
-                monitor._capture_recovery_copy(time.monotonic())
-                if state.get('recoveryRequired') and restored is None:
-                    if not monitor.snapshot_digest:
-                        raise RuntimeError('Nie potwierdzono poprawnej kopii OS1 na serwerze. Podejście zachowane; ponów RUN.')
-                    api.call('/api/recovery-ack',{'digest':monitor.snapshot_digest,'settings':integrity.read_and_check(event)})
+            if state['status']=='registered' and state.get('recoveryRequired'):
+                api.call('/api/recovery-ack',{'settings':integrity.read_and_check(event)})
             self.monitor=monitor
             preparation_complete=True
             self.set_status(f'Nadzór aktywny · oczekuję na START OS {monitor.stage_index+1}')
@@ -221,8 +243,10 @@ class WebLaunchWindow:
                 self.log(navigation)
             else:
                 self.log('Symulacja poza Windows: nie uruchamiam Steam')
+            self.preparation_ready=True
             self.watch(monitor)
         except Exception as exc:
+            self.finished=True
             if not preparation_complete and api is not None and getattr(api,'token',None):
                 try:
                     api.call('/api/launcher/abort',{})
@@ -280,8 +304,31 @@ class WebLaunchWindow:
 def main(link):
     ticket=parse_launch_link(link)
     guard=single_instance_lock()
+    from .launcher_control import ControlServer,forward_run
+    if os.name=='nt' and guard is None:
+        forward_run(data_dir(),link,parse_launch_link)
+        return
     # Keep mutex handle alive as long as Tk's event loop runs.
     _=guard
     root=tk.Tk()
-    WebLaunchWindow(root,ticket)
-    root.mainloop()
+    window=WebLaunchWindow(root,ticket)
+    control=None
+    if os.name=='nt':
+        try:control=ControlServer(data_dir(),lambda value:window.queue.put(('restart',value)),parse_launch_link)
+        except OSError:window.log('OSTRZEŻENIE: automatyczny restart EXE niedostępny. Zamknij grę i launcher ręcznie przed następnym RUN.')
+    try:root.mainloop()
+    finally:
+        window.running=False
+        if window.restart_link:window.worker.join(timeout=10)
+        if control:control.close()
+        if guard:
+            import ctypes
+            k32=ctypes.windll.kernel32
+            k32.ReleaseMutex.argtypes=[ctypes.c_void_p]
+            k32.CloseHandle.argtypes=[ctypes.c_void_p]
+            k32.ReleaseMutex(guard);k32.CloseHandle(guard)
+    if window.restart_link:
+        if window.worker.is_alive():raise RuntimeError('Nadzór nie zakończył się jeszcze. Ponownie kliknij RUN po zamknięciu starego launchera.')
+        import subprocess
+        command=[sys.executable,window.restart_link] if getattr(sys,'frozen',False) else [sys.executable,str(Path(__file__).resolve().parents[1]/'run_web_launcher.py'),window.restart_link]
+        subprocess.Popen(command)

@@ -31,10 +31,20 @@ Dates use fixed UTC+2. If RUN opens nothing, rerun the installer and allow exter
 
 ## Private Rally Weekends between Club stages
 
-With launcher 0.2.7, wait for a confirmed server checkpoint after an allowed exit at service, then close the launcher. You can play an unrelated private weekend. Close ACR before RUN; the Club checkpoint takes priority and restores your progress, including damage, before the next SS. The current local save is backed up before replacement. Server restoration does not depend on your old local session file. Older rallies also upload checkpoints at service using the updated launcher; copies that were never uploaded cannot be recovered from stage times. First RUN can prepare a new Club calendar over a private in-progress weekend after backing up the full original save.
+With launcher 0.2.8, wait for a confirmed server checkpoint after an allowed exit at service, then close the launcher. You can play an unrelated private weekend. Close ACR before RUN; the Club checkpoint takes priority and restores your progress, including damage, before the next SS. The current local save is backed up before replacement. Server restoration does not depend on your old local session file. Older rallies also upload checkpoints at service using the updated launcher; copies that were never uploaded cannot be recovered from stage times. First RUN can prepare a new Club calendar over a private in-progress weekend after backing up the full original save.
 
 ## Yellow settings warning (0.2.7)
 
 In a rally that allows continuation, changing the weekend settings before OS1 or between completed stages displays a yellow warning in the launcher and on the rally page. No new starts or times are accepted until recovery. Close the game and launcher, then click RUN. Before OS1 the canonical event settings are restored; after OS1 the latest confirmed personal Club copy restores the next stage, damage and accepted times including penalties. This does not grant a second attempt at an accepted stage.
 
 The launcher uploads a valid recovery copy while the game is open after the save contains correct progress and all completed stage results are confirmed. Wait for **KOPIA CLUB** before leaving the results screen to change any settings. If no valid copy was ever uploaded after OS1, progress cannot be reconstructed from times; contact the administrator. Normal private-game breaks still follow the event's service policy. Changes during an active stage and one-sitting restrictions remain DNF.
+
+## RUN restart, overlapping rallies and save expiry (0.2.8)
+
+A yellow warning means: close ACR **and the launcher EXE**, then click RUN. If the current 0.2.8 EXE is still open, RUN forwards the request to its window and asks you to confirm a launcher restart. Close the game first. An active SS or one-sitting continuation cannot be restarted this way. Old EXEs require manual closure.
+
+A car outside the allowed list/class does not start an official attempt; follow the yellow recovery instructions. After a correct start, a restart, quitting or returning to the menu before a verified finish still means DNF. A changed car after SS1 must be restored to the original car, preserving accepted results. In a one-sitting rally, correct the car in the still-open game instead of restarting between stages.
+
+For overlapping rounds, finish a stage in rally A, wait for its copy confirmation at allowed service, close the game and launcher, and RUN rally B. After a valid break in B, close both and RUN A again to restore A's next stage. Copies are isolated by event and participant IDs.
+
+The server stores saves only after confirmed stages that have a following stage. Before SS1 the canonical configuration is rebuilt without storing a save; the last stage removes the previous copy. Copies for closed rallies are removed within the running service's cleanup cycle or at its next wake. Stage results remain.

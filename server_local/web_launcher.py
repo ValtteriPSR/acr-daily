@@ -73,9 +73,8 @@ def mint_ticket(store, cookie, event_id):
                 raise Fault(409, tr('The rally is closed'))
             if player['status'] not in ('registered','ready'):
                 raise Fault(409, tr('The attempt has started or the rally has ended'))
-            leased = store.db.execute('SELECT expires FROM launch_leases WHERE player_id=?', (player['id'],)).fetchone()
-            if leased is not None and leased['expires'] > now:
-                raise Fault(409, tr('The launcher is already running. Wait for the stage to start or for 5 minutes to pass.'))
+            # Idle RUN may be handed to the existing EXE for an explicit restart.
+            # Active attempts remain locked above; the client mutex prevents a second monitor.
             existing = store.db.execute('SELECT expires FROM launch_tickets WHERE player_id=?', (player['id'],)).fetchone()
             if existing is not None and existing['expires'] > now:
                 raise Fault(409, tr('A RUN ticket has already been issued. Wait 60 seconds or use the previous page.'))

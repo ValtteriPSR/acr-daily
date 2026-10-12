@@ -4,7 +4,9 @@ import sys
 def self_test():
     """Exercise dependencies INSIDE the finished Windows EXE, no network/game/GUI."""
     from acr_daily import settings, saveslot, rallyweekend, telemetry, names, rallyclub
-    from club_local import web_launch, monitor, integrity, web_install
+    from club_local import web_launch, monitor, integrity, web_install, launcher_control
+    launcher_control.self_test(web_launch.parse_launch_link)
+    assert callable(launcher_control.serve_connection)
     assert callable(settings.load)
     assert callable(saveslot.game_running)
     assert callable(rallyweekend.read_weekend)

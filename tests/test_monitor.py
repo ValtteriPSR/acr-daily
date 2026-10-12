@@ -259,5 +259,13 @@ class MonitorTests(TestCase):
         self.assertEqual(self.store.state(self.token)['stage_index'],1)
         self.assertEqual(attempt_updates.checkpoint(self.store,self.token,recovery=True)['digest'],copy['digest'])
 
+    def test_wrong_class_warns_without_consuming_os1(self):
+        self.step(0,frame(0));wrong=frame(500);wrong.car='Wrong class car'
+        self.step(.1,wrong)
+        self.assertTrue(self.mon.recovery_required)
+        self.assertEqual(self.store.state(self.token)['status'],'registered')
+        self.assertTrue(any(line.startswith('OSTRZEŻENIE:') for line in self.log))
+        self.assertFalse(self.store.state(self.token)['results'])
+
 if __name__=='__main__':
     import unittest;unittest.main()
