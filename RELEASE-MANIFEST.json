@@ -10,7 +10,7 @@
   "note": "239 regression tests including silent initial backup, stage confirmation, single-copy retention, recovery locks and expandable console. PL/EN browser, PostgreSQL, portable Docker and frozen Windows EXE checks run in CI. Actual ACR telemetry requires in-game verification.",
   "files": {
     ".dockerignore": "d6c115a5f6dd79db80e5858f19e6f3db1b1ab71ff8a86f654c2cdabb03aa675a",
-    ".github/workflows/launcher-release.yml": "d2df69e099d0a37c3252e0bca2df54271e1de595e279830bb356148e770982ab",
+    ".github/workflows/launcher-release.yml": "05eb2a803882c7dca8953fc02c03f74f942fff21f8a3f553d64152b2288d5815",
     ".github/workflows/server-checks.yml": "2b6e3157a31c97a985829ce6b58b8b242e8df45d686c02792a5e1371b4473c5d",
     ".gitignore": "09c45fa1396e12299389a71f005e3f3447ce56702ee57e3e2b7f3686f7d45ff6",
     "LICENSE": "e41c13612721f384779ba3c746c741878ca0cf501bc64ad0d03183cfedd42075",
