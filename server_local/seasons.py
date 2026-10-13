@@ -577,7 +577,7 @@ def scoring(store,season_id,now=None):
         rallies=[]
         for ev in conf['events']:
             completed=store.db.execute('''SELECT p.club_member_id AS member_id,
-                SUM(r.total_ms) AS total,COUNT(r.stage_index) AS stages
+                SUM(r.total_ms)+COALESCE((SELECT SUM(a.amount_ms) FROM admin_time_penalties a WHERE a.player_id=p.id AND a.voided=0),0) AS total,COUNT(r.stage_index) AS stages
                 FROM players p JOIN results r ON r.player_id=p.id
                 WHERE p.event_id=? AND p.status='completed' AND p.club_member_id IS NOT NULL
                 GROUP BY p.id''',(ev['id'],)).fetchall()
@@ -589,7 +589,7 @@ def scoring(store,season_id,now=None):
             # stage total (raw + penalties), among FINISHERS only.
             final_index=nstages-1
             last_stage_rows=store.db.execute("""SELECT p.club_member_id AS member_id,
-                    r.total_ms AS total FROM results r JOIN players p ON p.id=r.player_id
+                    r.total_ms+COALESCE((SELECT SUM(a.amount_ms) FROM admin_time_penalties a WHERE a.player_id=p.id AND a.stage_index=r.stage_index AND a.voided=0),0) AS total FROM results r JOIN players p ON p.id=r.player_id
                     WHERE p.event_id=? AND p.status='completed' AND
                     p.club_member_id IS NOT NULL AND r.stage_index=?""",
                     (ev['id'],final_index)).fetchall()

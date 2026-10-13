@@ -285,4 +285,5 @@ refresh();
 
 def html():
     from admin_customization import enhance
-    return admin_shell(enhance(tr(PAGE)))
+    from admin_penalties import enhance as penalty_tools
+    return admin_shell(penalty_tools(enhance(tr(PAGE))))

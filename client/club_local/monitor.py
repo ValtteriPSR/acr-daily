@@ -24,6 +24,7 @@ from acr_daily.names import same_car
 from . import integrity
 from . import live_penalties
 from .version import VERSION as CLIENT_VERSION
+from .trace_sender import TraceSender
 
 
 def catalog_paths():
@@ -171,6 +172,7 @@ class AttemptMonitor:
         self.recovery_notified = False
         self.snapshot_digest = None
         self.snapshot_try = -5.0
+        self.trace=TraceSender(api,event['id'],emit)
 
     def read_baseline(self):
         path = Path(saveslot.SAVE)
@@ -324,6 +326,7 @@ class AttemptMonitor:
             self.emit('Serwer zablokował start: ' + str(exc))
             return
         self.status = 'active'
+        self.trace.observe(self.stage_index,f,time.monotonic())
         self.penalty_peak = None
         value=getattr(f,'penalty_ms',None)
         self.penalty_origin=self.startline_penalty if self.startline_penalty is not None else (value if type(value) is int and 0<=value<=3600000 else None)
@@ -500,6 +503,7 @@ class AttemptMonitor:
         if not self._check_integrity(now):
             return
         f = self.source.read()
+        if self.status=='active':self.trace.observe(self.stage_index,f,now)
         self._observe_live_penalty(f,now)
         if self.stage_index and self.status!='active':
             self._finalize_if_available(now)
@@ -613,6 +617,7 @@ class AttemptMonitor:
             self.emit('Nie zapisano kopii na serwerze; nie zamykaj launchera, ponawiam: '+str(exc))
 
     def close(self):
+        self.trace.close()
         if self.recovery_required:
             self.source.close()
             return

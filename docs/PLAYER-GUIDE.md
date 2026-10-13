@@ -48,3 +48,13 @@ A car outside the allowed list/class does not start an official attempt; follow 
 For overlapping rounds, finish a stage in rally A, wait for its copy confirmation at allowed service, close the game and launcher, and RUN rally B. After a valid break in B, close both and RUN A again to restore A's next stage. Copies are isolated by event and participant IDs.
 
 The server stores saves only after confirmed stages that have a following stage. Before SS1 the canonical configuration is rebuilt without storing a save; the last stage removes the previous copy. Copies for closed rallies are removed within the running service's cleanup cycle or at its next wake. Stage results remain.
+
+## Recorded telemetry and time penalties (0.2.9)
+
+Install the latest launcher to record telemetry. During a valid SS, position, speed and available gas/brake/gear inputs are sampled about once per second and sent in small live batches about every 3 seconds. Open **Telemetry** at the bottom of the rally page, then your name and the SS to view the recorded path and speed chart. Open telemetry views refresh every 5 seconds. Green/orange dots show the first/last sample; hover over the path for speed and inputs. The path is a world-coordinate projection, not an official road map.
+
+Green means no signal was detected in retained data; yellow means missing data or a review signal; red means a significant signal or DNF. These colours do not prove or disprove cheating. Shared-memory data comes from the participant's computer and can be forged. Restarts/attempt rules still apply independently. No data is fabricated for older launches.
+
+Trace delivery runs separately from timing checks. Network outages or quotas can leave an incomplete trace without causing DNF. The server limits samples to 16,000 per SS, 200,000 per rally and 1,000,000 overall. The client retains at most 90 queued samples. Telemetry is removed 30 days after the event closes (on the active cleanup cycle or next server wake), or immediately when the rally is deleted. Results remain after telemetry expiry.
+
+Administrator-added time penalties appear beneath stage/rally times with a reason and affect standings and season points. They are separate from game-official penalties. Confirmed zero penalties are green, positive penalties red; missing provisional penalties are shown as unknown.

@@ -1,3 +1,13 @@
+## ACR Rally Club 0.2.9
+
+- Live review telemetry records world X/Z positions, speed and available control inputs at approximately 1 Hz. A separate worker sends bounded batches every 3 seconds during the SS. Timing and attempt monitoring do not wait for trace delivery. Short final batches may flush after the finish.
+- The collapsed Telemetry section loads driver summaries and recorded paths on demand, refreshing open views every 5 seconds. Review colours distinguish no detected signals, incomplete/questionable data, and significant signals/DNF. These are not cheating verdicts or client authenticity proofs. Maps are world-coordinate projections without an official road baseline.
+- Review includes coverage, discontinuities, gaps, unusually high speed, distance, gas/brake averages where available, and RAW versus finish-telemetry differences over 250 ms. The existing 5-second rejection tolerance and observed-positive-penalty floor are preserved. No unverified penalty source was added.
+- Traces and trace summaries expire 30 days after the rally closes and are deleted immediately when an administrator deletes the rally. Storage is bounded (16,000 samples per SS, 200,000 per rally, 1,000,000 total; client buffer 90 samples). Limits and outages affect telemetry completeness, not racing validity.
+- Administrators can add reasoned time penalties per finished SS and revoke mistakes. Game-official rows stay immutable. Rally order, season/division/team and Power Stage points use effective times; additions appear in small text beneath the time. The actions remain in the admin audit.
+- Confirmed zero penalties are green; positive penalties are red. Unknown provisional penalties remain visibly unknown. Links use compact backgrounds/outlines and hover highlighting without underlining.
+- Regression checks include live submission before finish, non-blocking sender retries, immutable/idempotent batches, finite inputs, quotas, review colours, expiry/deletion, authenticated penalty controls, rally/season/Power Stage reordering and live path rendering in the browser. Actual shared-memory behaviour requires ACR game testing.
+
 ## ACR Rally Club 0.2.8
 
 - Save copies are stored only after a confirmed non-final stage. Before SS1, RUN rebuilds the canonical event configuration without uploading a save. The final stage removes the previous resume copy.

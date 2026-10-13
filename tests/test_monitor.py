@@ -53,6 +53,9 @@ class FakeApi:
         if endpoint=='/api/start':return self.store.start(self.token,data['eventId'],data['stageIndex'],data['carId'],data.get('settings'))
         if endpoint=='/api/heartbeat':return self.store.heartbeat(self.token,data['eventId'],data['stageIndex'],data.get('settings'),data.get('penaltyMs'))
         if endpoint=='/api/stage-end':return self.store.stage_end(self.token,data['eventId'],data['stageIndex'],data['clockMs'],data.get('settings'),data.get('penaltyMs'))
+        if endpoint=='/api/live-telemetry':
+            import telemetry_audit
+            return telemetry_audit.submit(self.store,self.token,data)
         if endpoint=='/api/telemetry-penalty':
             import attempt_updates
             return attempt_updates.late_penalty(self.store,self.token,data)
@@ -100,6 +103,8 @@ class MonitorTests(TestCase):
         self.clock_patch.start()
 
     def tearDown(self):
+        self.mon.trace.close()
+        if self.mon.trace.thread:self.mon.trace.thread.join(timeout=2)
         self.clock_patch.stop()
         self.catalog_patch.stop()
         self.integrity_patch.stop()

@@ -12,6 +12,8 @@ import base64
 import math
 import club_settings
 import attempt_updates
+import admin_penalties
+import telemetry_audit
 import sys
 # When launched with python server_local/server.py, ensure helper modules importing
 # `server.Fault` see the same class as the running __main__ HTTP handler.
@@ -157,6 +159,8 @@ class Store:
         """)
         club_settings.install(self)
         attempt_updates.install(self)
+        admin_penalties.install(self)
+        telemetry_audit.install(self)
         install_tables(self)
         install_seasons(self)
         discord_notifications.install(self)
@@ -263,6 +267,7 @@ class Store:
 
     def _sweep(self):
         now = time.time()
+        telemetry_audit.expire(self,now)
         self.db.execute("""UPDATE players SET status='dnf',terminal_reason='Missing complete official results after finish', started=NULL
             WHERE status='awaiting_results' AND last_seen < ?""", (now - 600,))
         self.db.execute("UPDATE players SET status='dnf',\n             terminal_reason='Client connection lost after stage start',\n             started=NULL WHERE status='active' AND last_seen < ?", (now - self.inactive,))
@@ -543,6 +548,12 @@ class Store:
             for r in pending:
                 r.update(stage_id=event['stages'][r['stage_index']]['stageId'],verified=False)
             stage_results.extend(pending)
+            additions=admin_penalties.totals(self,event_id)
+            for result in stage_results:
+                extra=additions.get((result['player_id'],result['stage_index']),{'amount':0,'reasons':[]})
+                result['admin_penalty_ms']=extra['amount'];result['admin_reasons']=extra['reasons']
+                result['total_ms']+=extra['amount']
+                if result['penalty_ms'] is not None:result['penalty_ms']+=extra['amount']
             stage_results.sort(key=lambda r:(r['stage_index'],r['total_ms'],r['player_id']))
             players=[dict(p) for p in players]
             for p in players:
@@ -550,6 +561,8 @@ class Store:
                 p['dnfStage']=min(p['stage_index']+1,len(event['stages'])) if p['status']=='dnf' else None
                 rows=[r for r in stage_results if r['player_id']==p['id']]
                 p['live_total']=sum(r['total_ms'] for r in rows)
+                p['admin_penalty_ms']=sum(r['admin_penalty_ms'] for r in rows)
+                p['total']+=p['admin_penalty_ms']
                 p['pending_stages']=sum(not r['verified'] for r in rows)
             return {'event': event, 'players': [dict(p) for p in sorted(players,
                     key=lambda p:(p['status'] != 'completed', -p['completed_stages'], p['total'], p['nickname'].lower()))],
@@ -674,9 +687,10 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
             status_text='DNF · '+tr('SS ')+str(p['dnfStage'])+((' · '+str(p['terminal_reason'])[:100]) if p.get('terminal_reason') else '')
         result=format_ms(p.get('live_total',p['total'])) if p['stage_index'] else '—'
         if p.get('pending_stages'): result+=' · '+tr('Provisional')
+        admin_note=('<small class="admin-penalty-note">'+escape(tr('Admin penalty'))+' +'+format_ms(p['admin_penalty_ms'])+'</small>') if p.get('admin_penalty_ms') else ''
         content+=('<tr data-driver="'+escape(p['nickname'],quote=True)+'"><td class="rank-col">'+str(i)+'</td><td><strong>'+escape(p['nickname'])+'</strong></td>'
                   '<td>'+escape(p['car_id'] or '—')+'</td><td>'+str(p['stage_index'])+'/'+str(total_stages)+'</td>'
-                  '<td class="mono"><strong>'+escape(result)+'</strong></td><td>'+pill(status_text,status_css)+'</td></tr>')
+                  '<td class="mono"><strong>'+escape(result)+'</strong>'+admin_note+'</td><td>'+pill(status_text,status_css)+'</td></tr>')
     content+='</tbody></table></div>'
     if not data['players']:content+=tr('<div class="empty">No drivers have registered yet.</div>')
     content+=tr('<p class="table-meta">Only drivers with FINISH status count toward the final standings. DNF prevents another attempt.</p></section>')
@@ -686,16 +700,19 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
         content+='<details class="round"'+''+tr('><summary><span>SS ')+str(index+1)+' · '+escape(stage['stageId'])+'</span>'+pill(str(len(stage_rows))+tr(' results'))+'</summary>'
         content+=tr('<div class="table-scroll"><table><thead><tr><th>#</th><th>Driver</th><th>RAW</th><th>Penalties</th><th>Official time</th></tr></thead><tbody>')
         for place,r in enumerate(stage_rows,1):
+            penalty_css='bad' if (r['penalty_ms'] is not None and r['penalty_ms']>0) or r.get('admin_penalty_ms',0)>0 else 'good' if r['penalty_ms']==0 else 'muted'
+            admin_note=('<small class="admin-penalty-note">'+escape(tr('Admin penalty'))+' +'+format_ms(r['admin_penalty_ms'])+' · '+escape('; '.join(r['admin_reasons']))+'</small>') if r.get('admin_penalty_ms') else ''
             content+=('<tr><td class="rank-col">'+str(place)+'</td><td>'+escape(r['nickname'])+'</td>'
                     '<td class="mono">'+format_ms(r['raw_ms'])+'</td>'
-                    '<td class="mono bad">'+('+'+format_ms(r['penalty_ms']) if r['penalty_ms'] is not None else '—')+'</td>'
-                    '<td class="mono"><strong>'+format_ms(r['total_ms'])+'</strong>'+('' if r.get('verified',True) else '<small class="muted"> '+escape(tr('Telemetry · pending save confirmation'))+'</small>')+'</td></tr>')
+                    '<td class="mono '+penalty_css+'">'+('+'+format_ms(r['penalty_ms']) if r['penalty_ms'] is not None else '+'+format_ms(r['admin_penalty_ms'])+' + ?' if r.get('admin_penalty_ms') else '—')+'</td>'
+                    '<td class="mono"><strong>'+format_ms(r['total_ms'])+'</strong>'+admin_note+('' if r.get('verified',True) else '<small class="muted"> '+escape(tr('Telemetry · pending save confirmation'))+'</small>')+'</td></tr>')
         content+='</tbody></table></div>'
         if not stage_rows:content+=tr('<div class="empty">Results appear after every stage; telemetry times await save confirmation.</div>')
         content+='</details>'
     content+='</section>'
     from site_theme import RALLY_FILTER_JS
-    return shell('ACR Rally Club — '+ev['name'],content,active='rallies',scripts=RALLY_FILTER_JS+__import__('live_results').SCRIPT)
+    trace_section,trace_script=telemetry_audit.section(ev['id'])
+    return shell('ACR Rally Club — '+ev['name'],content+trace_section,active='rallies',scripts=RALLY_FILTER_JS+__import__('live_results').SCRIPT+trace_script)
 
 
 def _is_loopback_hostname(hostname):
@@ -1054,6 +1071,17 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200,attempt_updates.checkpoint(store,self._token(),recovery=True))
                 if path == '/api/catalog':
                     return self._write(200,club_settings.catalog(store,catalog_root))
+                if path == '/api/admin/time-penalties':
+                    self._require_admin()
+                    event_id=parse_qs(urlparse(self.path).query).get('eventId',[''])[0]
+                    return self._write(200,admin_penalties.listing(store,event_id))
+                if path.startswith('/api/telemetry/'):
+                    parts=path.split('/')
+                    if len(parts)==4:
+                        return self._write(200,telemetry_audit.summaries(store,parts[3]),'text/html; charset=utf-8')
+                    if len(parts)==6 and parts[4]=='driver' and parts[5].isdigit():
+                        return self._write(200,telemetry_audit.driver(store,parts[3],int(parts[5])),'text/html; charset=utf-8')
+                    raise Fault(404,tr('Not found'))
                 if path == '/api/admin/branding':
                     self._require_admin()
                     return self._write(200,club_settings.public(store))
@@ -1184,6 +1212,10 @@ def make_handler(store, admin=None, catalog_root=None):
                         return self._write(200,club_settings.configure(store,data))
                     if path == '/api/admin/catalog':
                         return self._write(200,club_settings.save_catalog(store,data))
+                    if path == '/api/admin/time-penalties':
+                        return self._write(200,admin_penalties.add(store,data,self.client_address[0]))
+                    if path == '/api/admin/time-penalties/revoke':
+                        return self._write(200,admin_penalties.revoke(store,data,self.client_address[0]))
                     if path == '/api/admin/discord':
                         out=discord_notifications.configure(store,data)
                         store.audit(self.client_address[0],'discord_config',None,{'enabled':out['enabled']})
@@ -1268,8 +1300,8 @@ def make_handler(store, admin=None, catalog_root=None):
                     with store.lock:
                         actor=store._auth(self._token());_,ev=store.event(actor['event_id'])
                         v=self.headers.get('X-ACR-Launcher-Version','')
-                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,8)):
-                            raise Fault(426,'Install the latest 0.2.8 launcher from /download for this rally')
+                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,9)):
+                            raise Fault(426,'Install the latest 0.2.9 launcher from /download for this rally')
                     out = store.start(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('carId'), data.get('settings'))
                 elif path == '/api/heartbeat':
                     self._client_version()
@@ -1277,6 +1309,10 @@ def make_handler(store, admin=None, catalog_root=None):
                 elif path == '/api/telemetry-penalty':
                     self._client_version()
                     out = attempt_updates.late_penalty(store,self._token(),data)
+                elif path == '/api/live-telemetry':
+                    self._client_version()
+                    self._limit(path,600)
+                    out=telemetry_audit.submit(store,self._token(),data)
                 elif path == '/api/integrity-violation':
                     out = store.integrity_violation(self._token(),data.get('reason', tr('Settings mismatch')))
                 elif path == '/api/dnf':

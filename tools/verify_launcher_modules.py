@@ -18,6 +18,7 @@ MODULES = (
     "club_local.app",
     "club_local.integrity",
     "club_local.monitor",
+    "club_local.trace_sender",
     "club_local.live_penalties",
     "club_local.checkpoint_restore",
     "club_local.web_launch",

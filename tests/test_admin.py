@@ -71,6 +71,21 @@ class AdminHttpTests(unittest.TestCase):
         code, payload = self.send('POST','/api/admin/login', {'key':key}, {'X-ACR-Admin':'1'})
         self.assertEqual(code, 200, payload)
 
+    def test_administrator_time_penalties_require_admin_and_csrf_header(self):
+        from integrity_rules import expected_settings
+        ev=fixture_event();self.store.import_event(ev);token=self.store.join(ev['id'],'Penalty driver')['token']
+        report=expected_settings(ev);car=ev['allowedCars'][0]
+        self.store.start(token,ev['id'],0,car,report);self.store.stage_end(token,ev['id'],0,60000,report)
+        payload={'eventId':ev['id'],'playerId':self.store._auth(token)['id'],'stageIndex':0,'amountMs':5000,'reason':'HTTP review'}
+        self.assertEqual(self.send('GET','/api/admin/time-penalties?eventId='+ev['id'])[0],401)
+        self.assertEqual(self.send('POST','/api/admin/time-penalties',payload,{'X-ACR-Admin':'1'})[0],401)
+        self.login()
+        self.assertEqual(self.send('POST','/api/admin/time-penalties',payload)[0],403)
+        code,record=self.send('POST','/api/admin/time-penalties',payload,{'X-ACR-Admin':'1'})
+        self.assertEqual(code,200,record)
+        self.assertEqual(self.send('GET','/api/admin/time-penalties?eventId='+ev['id'])[1]['penalties'][0]['amount_ms'],5000)
+        self.assertEqual(self.send('POST','/api/admin/time-penalties/revoke',{'eventId':ev['id'],'id':record['id']},{'X-ACR-Admin':'1'})[0],200)
+
     def test_discord_configuration_requires_admin_and_keeps_secrets_private(self):
         url='https://discord.com/api/webhooks/123456789012345678/'+'a'*60
         self.assertEqual(self.send('GET','/api/admin/discord')[0],401)

@@ -180,7 +180,7 @@ def checkpoint(store,token,data=None,*,recovery=False):
 
 
 def purge_event_rows(store,ident):
-    for table in ('web_sessions','launch_tickets','launch_leases','rally_recovery','rally_checkpoints','telemetry_penalties','provisional','results'):
+    for table in ('telemetry_chunks','telemetry_runs','admin_time_penalties','web_sessions','launch_tickets','launch_leases','rally_recovery','rally_checkpoints','telemetry_penalties','provisional','results'):
         store.db.execute('DELETE FROM '+table+' WHERE player_id IN (SELECT id FROM players WHERE event_id=?)',(ident,))
     store.db.execute('DELETE FROM players WHERE event_id=?',(ident,))
     store.db.execute('DELETE FROM season_events WHERE event_id=?',(ident,))

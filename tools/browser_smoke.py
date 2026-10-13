@@ -16,6 +16,7 @@ from admin_access import admin_path
 from test_server import event
 from integrity_rules import expected_settings
 import club_settings
+import telemetry_audit
 
 
 def main():
@@ -64,12 +65,32 @@ def main():
                 page.locator('#rally-stage-results summary').first.click()
                 page.locator('#driver-search').fill('Browser')
                 csrf=next(c['value'] for c in page.context.cookies() if c['name']=='acrclub_csrf')
-                store.start(driver,ev['id'],0,ev['allowedCars'][0],expected_settings(ev));store.stage_end(driver,ev['id'],0,60000,expected_settings(ev),12500)
+                store.start(driver,ev['id'],0,ev['allowedCars'][0],expected_settings(ev))
+                points=[[i,i/1000*10,0,36,.5,.1,0,2,4000,False] for i in range(1000,60001,5000)]
+                telemetry_audit.submit(store,driver,{'eventId':ev['id'],'stageIndex':0,'seq':0,'points':points,'dropped':0})
+                page.locator('.trace-root > summary').click()
+                page.locator('.trace-driver > summary').first.click()
+                page.locator('[data-trace-stage] > summary').first.click()
+                page.locator('.trace-map polyline').first.wait_for(state='visible')
+                assert store.state(driver)['status']=='active'
+                assert page.evaluate("getComputedStyle(document.querySelector('main a')).textDecorationLine==='none'")
+                store.stage_end(driver,ev['id'],0,60000,expected_settings(ev),12500)
                 page.locator('#rally-stage-results td.mono').first.wait_for(state='visible',timeout=12000)
                 assert '+00:12.500' in page.locator('#rally-stage-results').inner_text()
                 assert page.locator('#rally-stage-results details[open]').count()==1
                 assert page.locator('#driver-search').input_value()=='Browser'
                 assert next(c['value'] for c in page.context.cookies() if c['name']=='acrclub_csrf')==csrf
+                page.goto(origin+admin_path(auth.key_path))
+                page.locator('summary').filter(has_text='Administrator time penalties').click()
+                page.locator('#apEvent').select_option(ev['id'])
+                pid=store._auth(driver)['id']
+                page.locator('#apPlayer option[value="'+str(pid)+'"]').wait_for(state='attached')
+                page.locator('#apPlayer').select_option(str(pid))
+                page.locator('#apSeconds').fill('5')
+                page.locator('#apReason').fill('Browser test penalty')
+                page.locator('#apAdd').click()
+                page.locator('#apHistory').get_by_text('Browser test penalty',exact=False).wait_for()
+                assert store.board(ev['id'])['stageResults'][0]['admin_penalty_ms']==5000
                 assert not errors,errors
                 browser.close()
         finally:
