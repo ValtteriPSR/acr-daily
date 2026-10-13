@@ -16,6 +16,9 @@ on:
         description: 'New release tag, for example v0.2.4 or v0.2.4-custom-domain'
         required: true
         type: string
+concurrency:
+  group: windows-launcher-${{ github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: write
 env:
