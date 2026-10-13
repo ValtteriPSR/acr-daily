@@ -79,6 +79,9 @@ def main():
                 assert page.locator('#run-open').get_attribute('href').startswith('acrclub://start?ticket=')
                 page.locator('#run-close').click()
                 assert not page.locator('#run-dialog').evaluate('(e)=>e.open')
+                page.locator('#rally-stage-results summary').first.click()
+                page.locator('#driver-search').fill('Browser')
+                csrf=next(c['value'] for c in page.context.cookies() if c['name']=='acrclub_csrf')
                 store.start(driver,ev['id'],0,ev['allowedCars'][0],expected_settings(ev))
                 points=[[i,i/1000*10,0,36,.5,.1,0,2,4000,False] for i in range(1000,60001,5000)]
                 telemetry_audit.submit(store,driver,{'eventId':ev['id'],'stageIndex':0,'seq':0,'points':points,'dropped':0})
