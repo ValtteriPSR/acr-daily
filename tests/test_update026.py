@@ -46,7 +46,8 @@ class RestoreTests(unittest.TestCase):
         if override:response.update(override)
         api=SimpleNamespace(call=mock.Mock(return_value=response))
         with mock.patch.object(checkpoint_restore,'_game_modules',return_value=modules),mock.patch.object(checkpoint_restore,'_report',side_effect=lambda b:json.loads(b)['settings']):
-            result=checkpoint_restore.restore(api,self.ev,self.s._auth(self.token)['id'],self.s.state(self.token),lambda s:None)
+            with mock.patch.object(checkpoint_restore,'_validate',return_value=None),mock.patch.object(checkpoint_restore,'_install',side_effect=replace if not missing else lambda b:save.write_bytes(b)),mock.patch('club_local.save_safety.state',return_value={}),mock.patch('club_local.save_safety.record'):
+                result=checkpoint_restore.restore(api,self.ev,self.s._auth(self.token)['id'],self.s.state(self.token),lambda s:None)
         return result,save,backup
 
     def test_server_copy_has_priority_over_private_weekend_without_local_session(self):
@@ -113,7 +114,8 @@ class WriterTests(unittest.TestCase):
             module.saveslot=SimpleNamespace(SAVE=str(path),game_running=lambda:False,replace=replace)
             module.rw=SimpleNamespace(read_weekend=lambda b:{'in_progress':True},park=mock.Mock(return_value=(b'PARKED CONFIGURATION',b'PRIVATE CONTEXT')))
             with mock.patch.object(module,'validate_event'),mock.patch.object(module,'apply_club_weekend',return_value=b'CLUB CALENDAR') as apply:
-                module.write_club_weekend({'stages':[{},{}]},'car',replace_in_progress=True)
+                with mock.patch('club_local.save_safety.preflight',return_value=b'PRIVATE WITH PROGRESS'),mock.patch('club_local.save_layout.inspect'),mock.patch('club_local.save_layout.park',return_value=b'PARKED CONFIGURATION'),mock.patch('club_local.save_layout.preserve_other_sections'),mock.patch('club_local.save_safety.replace',side_effect=lambda b,**kw:replace(b)),mock.patch('club_local.save_safety.state',return_value={}),mock.patch('club_local.save_safety.record'):
+                    module.write_club_weekend({'stages':[{},{}]},'car',replace_in_progress=True)
                 self.assertEqual(apply.call_args.args[0],b'PARKED CONFIGURATION')
                 self.assertEqual(saved,[b'PRIVATE WITH PROGRESS'])
                 self.assertEqual(path.read_bytes(),b'CLUB CALENDAR')

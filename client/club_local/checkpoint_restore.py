@@ -18,6 +18,18 @@ def _report(raw):
     from . import integrity
     return integrity.report_from_save(raw)
 
+def _validate(raw):
+    from .save_layout import inspect
+    inspect(raw)
+
+def _install(raw):
+    from .save_safety import replace
+    replace(raw)
+
+def _remember_copy(checkpoint,event,player_id):
+    from . import save_safety
+    meta=save_safety.state();meta['serverCopy']={'digest':checkpoint['digest'],'eventId':event['id'],'playerId':player_id};save_safety.record(meta)
+
 
 def restore(api,event,player_id,state,log):
     recovery=bool(state.get('recoveryRequired'))
@@ -62,6 +74,12 @@ def restore(api,event,player_id,state,log):
     if not isinstance(baseline,dict) or len(str(baseline))>256000 or any(not isinstance(k,str) or type(v) is not int or not 0<=v<=10000 for k,v in baseline.items()):
         raise RuntimeError('Nieprawidłowa baza wyników kopii')
     rallyweekend,saveslot=_game_modules()
+    try:_validate(raw)
+    except ValueError:
+        from .save_safety import block
+        block('Kopia serwera ma nieprawidłową strukturę; wznowienie wstrzymane.')
+        api.call('/api/save-problem',{'digest':checkpoint['digest'],'reason':'Invalid server save structure'})
+        raise RuntimeError('Kopia rajdu została oznaczona jako wadliwa. Nie podmieniono pliku; skontaktuj się z administratorem.')
     if compare(event,_report(raw)):
         raise RuntimeError('Kopia ma inne ustawienia rajdu; zapis nie został zmieniony')
     progress=rallyweekend.progress(raw)
@@ -72,15 +90,8 @@ def restore(api,event,player_id,state,log):
     # replace() backs up the current local save, including a private weekend,
     # before atomically installing the authenticated checkpoint. No local save
     # parsing or local-session prerequisite is needed for a server restore.
-    target=Path(saveslot.SAVE)
-    if target.exists():
-        saveslot.replace(raw)
-    else:
-        target.parent.mkdir(parents=True,exist_ok=True)
-        with tempfile.NamedTemporaryFile(dir=target.parent,delete=False) as out:
-            temporary=Path(out.name);out.write(raw)
-        try: os.replace(temporary,target)
-        finally: temporary.unlink(missing_ok=True)
+    _install(raw)
+    _remember_copy(checkpoint,event,player_id)
     log(f'Przywrócono osobistą kopię Club z serwera przed OS {idx+1}; lokalny Rally Weekend nie ma pierwszeństwa.')
     if recovery:
         api.call('/api/recovery-ack',{'digest':checkpoint['digest'],'settings':_report(raw)})

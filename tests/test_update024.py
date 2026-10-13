@@ -12,6 +12,7 @@ import time
 import unittest
 from unittest.mock import patch
 sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'server_local'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'client'))
 import attempt_updates as updates
 import club_settings
 from server import Store,Fault,site
@@ -27,12 +28,19 @@ from season_panel import enhance_deletion,PAGE as SEASON_PAGE
 
 class UpdateStoreTests(unittest.TestCase):
     def setUp(self):
+        self.layout_patch=patch('attempt_updates.validate_checkpoint_save',return_value=None)
+        self.layout_patch.start()
+        from club_local import checkpoint_restore
+        self.client_layout_patches=[patch.object(checkpoint_restore,'_validate',return_value=None),patch.object(checkpoint_restore,'_remember_copy'),patch.object(checkpoint_restore,'_install',side_effect=lambda raw:checkpoint_restore._game_modules()[1].replace(raw))]
+        for item in self.client_layout_patches:item.start()
         self.tmp=tempfile.TemporaryDirectory();self.s=Store(Path(self.tmp.name)/'test.db')
         self.ev=event();self.ev.update(allowBreaks=True,launcherProtocol='0.2.4')
         self.ev['stages'][1]['serviceBefore']=True
         self.s.import_event(self.ev);self.token=self.s.join(self.ev['id'],'AA')['token']
         self.car=self.ev['allowedCars'][0];self.report=expected_settings(self.ev)
-    def tearDown(self): self.s.db.close();self.tmp.cleanup()
+    def tearDown(self):
+        for item in reversed(self.client_layout_patches):item.stop()
+        self.layout_patch.stop();self.s.db.close();self.tmp.cleanup()
     def finish(self,idx):
         self.s.start(self.token,self.ev['id'],idx,self.car,self.report)
         self.s.stage_end(self.token,self.ev['id'],idx,60000,self.report)

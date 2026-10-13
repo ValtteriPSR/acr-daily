@@ -639,7 +639,8 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     content+='<div id="rally-recovery-warning">'
     warned=[p for p in data['players'] if p.get('recoveryRequired')]
     if warned:
-        content+='<div class="recovery-warning" role="status">'+escape(tr('Configuration or car does not match the rally. Your attempt is preserved. Close ACR and the launcher EXE before RUN. If the EXE is still open, confirm its restart in the dialog. No times are accepted until recovery.'))+'<br>'+escape(', '.join(p['nickname'] for p in warned))+'</div>'
+        warning='The rally save copy is quarantined. RUN cannot restore it. Contact the administrator; do not repeat RUN with this copy.' if any(p.get('saveCopyBlocked') for p in warned) else 'Configuration or car does not match the rally. Your attempt is preserved. Close ACR and the launcher EXE before RUN. If the EXE is still open, confirm its restart in the dialog. No times are accepted until recovery.'
+        content+='<div class="recovery-warning" role="status">'+escape(tr(warning))+'<br>'+escape(', '.join(p['nickname'] for p in warned))+'</div>'
     content+='</div>'
     content+=tr('<section class="card"><span class="section-kicker">Driver area</span><h2>Your entry</h2>')
     if csrf:
@@ -679,7 +680,9 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     for i,p in enumerate(data['players'],1):
         label={'completed':tr('FINISH'),'dnf':'DNF','ready':tr('BETWEEN STAGES'),'active':tr('ON STAGE'),'registered':tr('REGISTERED'),'awaiting_results':tr('VERIFICATION')}.get(p['status'],p['status'])
         status_css='status-done' if p['status']=='completed' else 'status-dnf' if p['status']=='dnf' else ''
-        if p.get('recoveryRequired'):
+        if p.get('saveCopyBlocked'):
+            label=tr('SAVE COPY BLOCKED');status_css='status-warning'
+        elif p.get('recoveryRequired'):
             label=tr('RESTORE WITH RUN')
             status_css='status-warning'
         status_text=label+((' · '+str(p['terminal_reason'])[:100]) if p['status']=='dnf' and p.get('terminal_reason') else '')
@@ -1283,8 +1286,13 @@ def make_handler(store, admin=None, catalog_root=None):
                 if path == '/api/launcher/abort':
                     self._client_version()
                     return self._write(200, abort_prestart(store,self._token()))
+                if path == '/api/save-problem':
+                    self._client_version()
+                    return self._write(200,attempt_updates.save_problem(store,self._token(),data))
                 if path == '/api/launcher/redeem':
                     self._client_version()
+                    v=self.headers.get('X-ACR-Launcher-Version','')
+                    if not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,11):raise Fault(426,'Install launcher 0.2.11 or newer from /download. Older versions can damage saves.')
                     self._limit(path,30)
                     out = redeem_ticket(store, data.get('ticket'))
                 elif path == '/api/join':
@@ -1297,8 +1305,8 @@ def make_handler(store, admin=None, catalog_root=None):
                     with store.lock:
                         actor=store._auth(self._token());_,ev=store.event(actor['event_id'])
                         v=self.headers.get('X-ACR-Launcher-Version','')
-                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,9)):
-                            raise Fault(426,'Install the latest 0.2.9 launcher from /download for this rally')
+                        if ev.get('launcherProtocol')=='0.2.4' and (not re.fullmatch(r'0\.[0-9]+\.[0-9]+',v) or tuple(map(int,v.split('.')))<(0,2,11)):
+                            raise Fault(426,'Install the latest 0.2.11 launcher from /download for this rally')
                     out = store.start(self._token(), data.get('eventId'), data.get('stageIndex'), data.get('carId'), data.get('settings'))
                 elif path == '/api/heartbeat':
                     self._client_version()

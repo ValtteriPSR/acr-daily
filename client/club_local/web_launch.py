@@ -78,7 +78,7 @@ def single_instance_lock():
 
 
 class WebLaunchWindow:
-    def __init__(self, root, ticket):
+    def __init__(self, root, ticket=None):
         self.root=root
         self.ticket=ticket
         self.running=True
@@ -88,8 +88,8 @@ class WebLaunchWindow:
         self.restart_link=None
         self.preparation_ready=False
         root.title('ACR Rally Club V'+VERSION+' — start ze strony')
-        root.geometry('720x450')
-        root.minsize(540,320)
+        root.geometry('760x590')
+        root.minsize(620,450)
         root.configure(bg='#13212c')
         tk.Label(root,text='ACR RALLY CLUB',font=('Segoe UI',19,'bold'),
                  fg='white',bg='#13212c').pack(anchor='w',padx=18,pady=(14,5))
@@ -104,11 +104,42 @@ class WebLaunchWindow:
         self.nav_notice=tk.StringVar(value='Przejdź samodzielnie: Racing → Rally → Rally Weekend → WYBIERZ SAMOCHÓD I NIE ZMIENIAJ ŻADNYCH USTAWIEŃ → START RALLY → opony → START STAGE.')
         tk.Label(root,textvariable=self.nav_notice,fg='#55e0ad',bg='#13212c',
                  wraplength=650,justify='left').pack(anchor='w',padx=18,pady=(0,8))
+        controls=tk.Frame(root,bg='#13212c');controls.pack(fill='x',padx=18,pady=(0,10))
+        for label,action in [('Zapis działa — zachowaj kopię','confirm'),('Przywróć potwierdzoną kopię','restore'),('Gra crashuje — zablokuj RUN','crash')]:
+            tk.Button(controls,text=label,command=lambda a=action:self.save_action(a)).pack(fill='x',pady=2)
         root.protocol('WM_DELETE_WINDOW',self.close)
         self.log('Wersja launchera: '+VERSION+' · nawigacja w menu ACR: RĘCZNA')
         root.after(100,self.drain)
-        self.worker=threading.Thread(target=self.prepare,daemon=True)
+        if ticket is None:
+            self.finished=True
+            self.set_status('Narzędzia zapisu · gra musi być zamknięta podczas operacji')
+            self.set_navigation('Sprawdź grę przez Steam bez RUN, zamknij ją, następnie potwierdź działający zapis. Przywracanie nie rozpoczyna rajdu.')
+        self.worker=threading.Thread(target=self.prepare if ticket else lambda:None,daemon=True)
         self.worker.start()
+
+    def save_action(self,action):
+        from . import save_safety
+        if not self.finished or (self.monitor and self.monitor.status=='active'):
+            messagebox.showwarning('Zapis ACR','Najpierw zakończ nadzór. Nie zmieniaj zapisu podczas przygotowania lub aktywnego rajdu.');return
+        try:
+            if action=='confirm':
+                if not messagebox.askyesno('Potwierdzenie działającego zapisu','Czy po ostatniej podmianie gra uruchomiła się poprawnie, weszła do menu i została normalnie zamknięta? Potwierdź tylko po rzeczywistej próbie przez Steam.'):
+                    return
+                save_safety.confirm_good();self.log('Chroniona kopia działającego zapisu zachowana. Możesz ponownie kliknąć RUN na stronie.')
+            elif action=='restore':
+                if not messagebox.askyesno('Przywrócenie zapisu','Przywrócić kopię potwierdzoną działaniem gry? Obecny zapis zostanie zachowany osobno. Kopia może cofnąć późniejsze zmiany i postęp. Rajd nie zostanie uruchomiony.'):
+                    return
+                save_safety.restore_previous();self.log('Przywrócono potwierdzoną kopię. Sprawdź grę przez Steam bez RUN; po zamknięciu potwierdź działanie zapisu.')
+            else:
+                save_safety.report_crash();self.log('Awaria zapisu zgłoszona lokalnie. RUN zablokowany; wadliwy plik zachowano do analizy.')
+                source=save_safety.state().get('serverCopy')
+                if source:
+                    session=json.loads((data_dir()/'player-session.json').read_text(encoding='utf-8'))
+                    if session.get('eventId')==source['eventId'] and session.get('playerId')==source['playerId']:
+                        api=Api(session['server']);api.token=session['token']
+                        api.call('/api/save-problem',{'digest':source['digest'],'reason':'Game could not load the save'})
+                        self.log('Kopia rajdu została również oznaczona na serwerze; nie będzie przywracana ponownie.')
+        except Exception as exc:messagebox.showwarning('Zapis ACR',str(exc))
 
     def log(self,msg):
         self.queue.put(('log',str(msg)))
@@ -185,6 +216,9 @@ class WebLaunchWindow:
             token=launch['token']
             player_id=launch['playerId']
             api.token=token
+            from . import save_safety
+            save_safety.ensure_run_allowed()
+            if Path(saveslot.SAVE).exists():save_safety.preflight()
             self.log(f'RUN potwierdzony: {nickname} · {event["name"]} · {len(event["stages"])} OS')
             catalog=api.call('/api/catalog')
             state=api.call('/api/me')
@@ -313,12 +347,13 @@ class WebLaunchWindow:
         self.root.destroy()
 
 
-def main(link):
-    ticket=parse_launch_link(link)
+def main(link=None):
+    ticket=parse_launch_link(link) if link else None
     guard=single_instance_lock()
     from .launcher_control import ControlServer,forward_run
     if os.name=='nt' and guard is None:
-        forward_run(data_dir(),link,parse_launch_link)
+        if link:forward_run(data_dir(),link,parse_launch_link)
+        else:messagebox.showwarning('ACR Rally Club','Launcher jest już otwarty. Użyj jego narzędzi zapisu.')
         return
     # Keep mutex handle alive as long as Tk's event loop runs.
     _=guard

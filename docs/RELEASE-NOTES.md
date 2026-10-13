@@ -1,3 +1,13 @@
+## ACR Rally Club 0.2.11
+
+- Fix the actual save-corruption bug: parse mode/context/component lengths to park only the Rally Weekend state. Never scan to the next Default key. Preserve every byte outside Rally Weekend, except the required enclosing payload length.
+- Bounded GVAS/settings/selection validation before writes and validation of calendar, rules and progress in uploaded/downloaded checkpoints. Invalid replacements leave the prior server copy intact; invalid legacy copies are quarantined on access.
+- A separate protected copy requires explicit user confirmation after a successful game launch and normal exit. Before the first RUN: launch via Steam without RUN, enter the menu, close ACR, then press Zapis działa — zachowaj kopię. Prepared/restored saves require confirmation before another RUN.
+- EXE installation opens save tools without a RUN ticket. Restore keeps a recovery lock, preserves the affected file separately, and never auto-launches a rally. Reported-bad digests cannot be reused; an earlier confirmed copy is available when the newest one was reported bad. Working/quarantine copies retain the last 15 each; protected copies are not removed by RUN.
+- Server quarantine blocks repeated checkpoint restores without resetting accepted times or idle attempts. Website displays a blocked-copy warning; the PL/EN guide explains recovery and possible local progress rollback. Existing damaged copies may require administrator review instead of automatic resume.
+- RUN redemption requires 0.2.11 or newer, including legacy rallies. No automatic claim that structural validity proves the game can load a file. Native Windows EXE self-test exercises atomic save writes and the recovery lock in an isolated temporary directory.
+- Regression fixtures are fully synthetic. No user save, profile, device configuration or personal telemetry is included in repository/test/release files. Full in-game round-trip validation still requires an ACR test.
+
 ## ACR Rally Club 0.2.10
 
 - RUN opens a compact dialog on the rally page. CSRF-protected single-use tickets expire after 60 seconds; no launch ticket is added to the rally URL.

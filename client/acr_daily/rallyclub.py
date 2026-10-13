@@ -219,18 +219,20 @@ def write_club_weekend(event, car_id, cars_by_id=None, *, replace_in_progress=Fa
         raise SaveError('Close Assetto Corsa Rally before changing its save')
     if not __import__('os').path.isfile(saveslot.SAVE):
         raise SaveError('PlayerDataSaveSlot.sav not found')
-    with open(saveslot.SAVE, 'rb') as source:
-        original = source.read()
+    from club_local import save_layout, save_safety
+    original=save_safety.preflight()
     prepared=original
     if replace_in_progress:
         try: current=rw.read_weekend(original)
         except SaveError: current=None  # apply_club_weekend retains its format recovery.
         if current and current['in_progress']:
-            prepared,_=rw.park(original)
+            prepared=save_layout.park(original,rw)
     changed = apply_club_weekend(prepared, event, car_id, cars_by_id)
+    save_layout.preserve_other_sections(original,changed)
     # The on-disk original is still intact here: replace() backs up the entire
     # private in-progress weekend, not just the stripped preparation buffer.
-    saveslot.replace(changed)
+    save_safety.replace(changed,expected_source_digest=save_safety.digest(original))
+    meta=save_safety.state();meta.pop('serverCopy',None);save_safety.record(meta)
     return len(event['stages'])
 
 

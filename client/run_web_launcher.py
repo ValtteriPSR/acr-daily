@@ -8,6 +8,8 @@ def self_test():
     launcher_control.self_test(web_launch.parse_launch_link)
     from club_local import read_only_memory, memory_diagnostics
     read_only_memory.self_test()
+    from club_local import save_safety
+    save_safety.self_test()
     if __import__('os').name == 'nt':
         assert memory_diagnostics.snapshot(), 'Windows memory counters unavailable'
     assert callable(trace_sender.TraceSender)
@@ -36,6 +38,8 @@ if __name__ == '__main__':
             target, cfg = install(sys.executable)
             installed_message('ACR Rally Club — zainstalowano',
                 f'Launcher V{VERSION} zainstalowany:\n{target}\n\nSerwer:\n{cfg}\n\nMożesz kliknąć RUN na stronie klubu.')
+            from club_local.web_launch import main
+            main()
         except Exception as exc:
             installed_message('ACR Rally Club — błąd',str(exc))
             sys.exit(1)

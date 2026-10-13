@@ -139,7 +139,7 @@ class WebLauncherHTTP(unittest.TestCase):
                 with self.assertRaises(HTTPError) as incompatible:
                     urlopen(old)
                 self.assertEqual(incompatible.exception.code,426)
-                req=Request(address+'/api/launcher/redeem',data=payload,headers={'Content-Type':'application/json','X-ACR-Launcher-Version':'6.3.1'},method='POST')
+                req=Request(address+'/api/launcher/redeem',data=payload,headers={'Content-Type':'application/json','X-ACR-Launcher-Version':'0.2.11'},method='POST')
                 with urlopen(req) as response:
                     creds=json.load(response)
                 self.assertEqual(creds['nickname'],'BrowserDriver')

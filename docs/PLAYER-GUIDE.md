@@ -1,3 +1,7 @@
+# Save safety in 0.2.11
+
+Start ACR through Steam without RUN, enter the menu, exit normally, and confirm the working save in the EXE save tools before your first RUN. After a prepared/restored save successfully loads, confirm it after closing the game before a later RUN. Report load crashes in the tools. Restore a confirmed copy, test it via Steam without RUN, then confirm. Protected copies are separate from working/quarantine backups. Server quarantine needs administrator review and does not reset stage results. Older local copies may roll back local progress.
+
 # Player guide
 
 Open https://acr-rally-club.onrender.com/ and select **PL / EN**.

@@ -58,6 +58,9 @@ def main():
                                 text=page.locator('main').inner_text()
                                 assert 'Python' not in text and '.bat' not in text and 'Automatyczna nawigacja' not in text
                                 assert ('Steam' in text)
+                            if path=='/guide':
+                                assert page.locator('#save-safety-guide').count()==1
+                                assert '0.2.11' in page.locator('#save-safety-guide').inner_text()
                             if path.startswith('/rally/'):
                                 assert page.locator('#rally-stage-results details[open]').count()==0
                         page.goto(origin+'/');assert page.locator('a[href$="/ACR-Rally-Club-Setup.exe"]').first.get_attribute('href').startswith('https://github.com/')

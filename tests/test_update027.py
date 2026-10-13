@@ -53,7 +53,8 @@ class RecoveryTests(unittest.TestCase):
             raise AssertionError(path)
         modules=(SimpleNamespace(progress=lambda b:{'done':json.loads(b)['done']}),SimpleNamespace(SAVE=str(save),game_running=lambda:False,replace=save.write_bytes))
         with mock.patch.object(checkpoint_restore,'_game_modules',return_value=modules),mock.patch.object(checkpoint_restore,'_report',side_effect=lambda b:json.loads(b)['settings']):
-            checkpoint_restore.restore(SimpleNamespace(call=call),self.ev,self.s._auth(self.token)['id'],state,lambda m:None)
+            with mock.patch.object(checkpoint_restore,'_validate',return_value=None),mock.patch.object(checkpoint_restore,'_install',side_effect=save.write_bytes),mock.patch('club_local.save_safety.state',return_value={}),mock.patch('club_local.save_safety.record'):
+                checkpoint_restore.restore(SimpleNamespace(call=call),self.ev,self.s._auth(self.token)['id'],state,lambda m:None)
         self.assertEqual(save.read_bytes(),raw)
         current=self.s.state(self.token);self.assertFalse(current['recoveryRequired']);self.assertEqual(current['results'][0]['penalty_ms'],1000)
         self.assertEqual(self.s.start(self.token,self.ev['id'],1,self.car,self.report)['status'],'active')

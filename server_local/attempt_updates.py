@@ -6,6 +6,7 @@ import io
 import json
 import math
 import time
+import save_layout
 from integrity_rules import compare as compare_settings
 
 MAX_SAVE = 4 * 1024 * 1024
@@ -14,6 +15,9 @@ MAX_CHECKPOINT_STORAGE = 64 * 1024 * 1024
 
 
 def install(store):
+    store.db.execute('''CREATE TABLE IF NOT EXISTS rally_save_problems (
+      player_id INTEGER NOT NULL REFERENCES players(id), digest TEXT NOT NULL,
+      reason TEXT NOT NULL, created REAL NOT NULL, PRIMARY KEY(player_id,digest))''')
     store.db.execute('''CREATE TABLE IF NOT EXISTS telemetry_penalties (
       player_id INTEGER NOT NULL REFERENCES players(id), stage_index INTEGER NOT NULL,
       penalty_ms INTEGER NOT NULL, updated REAL NOT NULL,
@@ -28,7 +32,30 @@ def install(store):
 
 def recovery_state(store,player_id):
     row=store.db.execute('SELECT reason FROM rally_recovery WHERE player_id=?',(player_id,)).fetchone()
-    return {'recoveryRequired':bool(row),'recoveryReason':row['reason'] if row else ''}
+    problem=store.db.execute('SELECT b.reason FROM rally_save_problems b JOIN rally_checkpoints c ON c.player_id=b.player_id AND c.digest=b.digest WHERE b.player_id=?',(player_id,)).fetchone()
+    return {'recoveryRequired':bool(row or problem),'recoveryReason':row['reason'] if row else problem['reason'] if problem else '', 'saveCopyBlocked':bool(problem)}
+
+def validate_checkpoint_save(raw,ev,idx):
+    report,done=save_layout.rally_report(raw)
+    if compare_settings(ev,report) or done!=idx:raise save_layout.InvalidSave('Save calendar, rules or progress do not match this rally')
+
+def save_problem(store,token,data):
+    from server import Fault
+    import re
+    with store.lock:
+        p=store._auth(token);digest=data.get('digest')
+        if not isinstance(digest,str) or not re.fullmatch('[a-f0-9]{64}',digest):raise Fault(400,'Invalid save digest')
+        row=store.db.execute('SELECT digest FROM rally_checkpoints WHERE player_id=?',(p['id'],)).fetchone()
+        if not row or row['digest']!=digest:return {'ok':True,'checkpointBlocked':False}
+        store.db.execute('INSERT INTO rally_save_problems(player_id,digest,reason,created) VALUES(?,?,?,?) ON CONFLICT(player_id,digest) DO NOTHING',(p['id'],digest,'Save copy could not be loaded. Resume is blocked; contact the administrator.',time.time()))
+        store.db.execute('DELETE FROM launch_leases WHERE player_id=?',(p['id'],))
+        return {'ok':True,'checkpointBlocked':True}
+
+def _unpack_checkpoint(packed):
+    compressed=base64.b64decode(packed,validate=True)
+    with gzip.GzipFile(fileobj=io.BytesIO(compressed)) as f:raw=f.read(MAX_SAVE+1)
+    if not raw or len(raw)>MAX_SAVE:raise ValueError('Save too large')
+    return raw
 
 
 def require_recovery(store,p,reason):
@@ -158,6 +185,14 @@ def checkpoint(store,token,data=None,*,recovery=False):
         if data is None:
             row=store.db.execute('SELECT * FROM rally_checkpoints WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
             if not row: return {'available':False}
+            if store.db.execute('SELECT 1 FROM rally_save_problems WHERE player_id=? AND digest=?',(p['id'],row['digest'])).fetchone():raise Fault(409,'This save copy is quarantined. Contact the administrator; it will not be restored again.')
+            try:
+                raw=_unpack_checkpoint(json.loads(row['payload'])['save'])
+                if hashlib.sha256(raw).hexdigest()!=row['digest']:raise ValueError('Digest mismatch')
+                validate_checkpoint_save(raw,ev,idx)
+            except (ValueError,OSError,EOFError,KeyError):
+                save_problem(store,token,{'digest':row['digest']})
+                raise Fault(409,'Server save copy failed structural validation. Resume is blocked; contact the administrator.')
             return {'available':True,**json.loads(row['payload']),'digest':row['digest'],'stageIndex':idx,'playerId':p['id'],'eventId':p['event_id']}
         if recovery_state(store,p['id'])['recoveryRequired']:
             raise Fault(409,'Settings recovery is required; the last valid copy is protected')
@@ -172,6 +207,9 @@ def checkpoint(store,token,data=None,*,recovery=False):
         except (ValueError,OSError,EOFError): raise Fault(400,'Invalid or oversized save')
         digest=hashlib.sha256(raw).hexdigest()
         if digest!=data.get('digest'): raise Fault(400,'Checkpoint checksum mismatch')
+        try:validate_checkpoint_save(raw,ev,idx)
+        except ValueError as exc:raise Fault(400,'Invalid checkpoint structure: '+str(exc))
+        if store.db.execute('SELECT 1 FROM rally_save_problems WHERE player_id=? AND digest=?',(p['id'],digest)).fetchone():raise Fault(409,'This save was quarantined and cannot replace the protected copy')
         payload=json.dumps({'save':packed,'baseline':baseline},separators=(',',':'))
         size=store.db.execute('SELECT COALESCE(SUM(LENGTH(payload)),0) FROM rally_checkpoints WHERE player_id<>?',(p['id'],)).fetchone()[0]
         if size+len(payload)>MAX_CHECKPOINT_STORAGE: raise Fault(507,'Resume storage is full; keep the game open and contact the administrator')
@@ -180,7 +218,7 @@ def checkpoint(store,token,data=None,*,recovery=False):
 
 
 def purge_event_rows(store,ident):
-    for table in ('telemetry_chunks','telemetry_runs','admin_time_penalties','web_sessions','launch_tickets','launch_leases','rally_recovery','rally_checkpoints','telemetry_penalties','provisional','results'):
+    for table in ('telemetry_chunks','telemetry_runs','admin_time_penalties','web_sessions','launch_tickets','launch_leases','rally_recovery','rally_save_problems','rally_checkpoints','telemetry_penalties','provisional','results'):
         store.db.execute('DELETE FROM '+table+' WHERE player_id IN (SELECT id FROM players WHERE event_id=?)',(ident,))
     store.db.execute('DELETE FROM players WHERE event_id=?',(ident,))
     store.db.execute('DELETE FROM season_events WHERE event_id=?',(ident,))

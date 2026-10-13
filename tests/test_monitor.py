@@ -96,6 +96,8 @@ class MonitorTests(TestCase):
         self.integrity_patch.start()
         self.report_patch=mock.patch.object(monitor.integrity,'report_from_save',side_effect=lambda raw:expected_settings(self.ev))
         self.report_patch.start()
+        self.layout_patch=mock.patch('attempt_updates.validate_checkpoint_save',return_value=None)
+        self.layout_patch.start()
         self.mon=monitor.AttemptMonitor(self.api,self.ev,'Driver',self.log.append,source=self.src)
         self.mon.resume()
         self.clock=[0.0]
@@ -103,6 +105,7 @@ class MonitorTests(TestCase):
         self.clock_patch.start()
 
     def tearDown(self):
+        self.layout_patch.stop()
         self.mon.trace.close()
         if self.mon.trace.thread:self.mon.trace.thread.join(timeout=2)
         self.clock_patch.stop()
