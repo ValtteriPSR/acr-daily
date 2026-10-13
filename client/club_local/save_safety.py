@@ -177,7 +177,9 @@ def self_test():
         globals()['directory']=old_dir;saveslot.SAVE=old_save;saveslot.game_running=old_running
 
 
-FIRST_WEEKEND_MESSAGE = 'Zamknij launcher. Uruchom grę normalnie i ustaw dowolny Rally Weekend. Uruchom pierwszy OS i poczekaj na koniec odliczania (nie musisz kończyć OS-u). Wyjdź z gry, następnie ponownie kliknij RUN na stronie klubu.'
+FIRST_WEEKEND_MESSAGE = 'Pozostaw launcher otwarty. Uruchom grę normalnie i utwórz dowolny Rally Weekend. Wystartuj do pierwszego OS-u i poczekaj, aż skończy się odliczanie do startu. Ten prywatny przejazd nie zostanie zaliczony w Club i nie zużyje Twojego podejścia do rajdu klubowego — inna konfiguracja nie odbiera możliwości późniejszego startu przez RUN RALLY. Gdy pojawi się informacja „Kopia MASTER została wygenerowana”, możesz wyjść z gry (nie musisz kończyć OS-u), a następnie kliknąć RUN RALLY na stronie.'
+SETUP_COMPLETE = 'Kopia MASTER została wygenerowana. Możesz już wyjść z gry (nie musisz kończyć OS-u), a następnie kliknąć RUN RALLY na stronie. Prywatny przejazd nie został zaliczony w Club i nie zużył podejścia.'
+
 MASTER_NOTICE = 'Kopia MASTER została wygenerowana. W razie problemów z grą przywróć ją w launcherze.'
 
 class WeekendRequired(save_layout.InvalidSave):pass
@@ -199,6 +201,11 @@ def prepare_run():
     """Silent initial backup before the first Club write, no inferred SS proof."""
     from acr_daily import saveslot
     if saveslot.game_running():raise save_layout.InvalidSave('Zamknij grę przed RUN.')
+    # Missing game data takes precedence over stale launcher transaction flags.
+    # The setup observer never writes Club settings or registers a Club start.
+    raw=read_file(saveslot.SAVE) if Path(saveslot.SAVE).exists() else b''
+    try:save_layout.rally_report(raw)
+    except save_layout.InvalidSave:raise WeekendRequired(FIRST_WEEKEND_MESSAGE)
     meta=state()
     if meta.get('restartRequired'):
         if meta.get('restoreProcess')==os.getpid():raise save_layout.InvalidSave('Zrestartuj launcher i grę po przywróceniu zapisu.')
@@ -206,9 +213,6 @@ def prepare_run():
         record(meta)
     if meta.get('good') or meta.get('pending') or meta.get('blocked'):
         ensure_run_allowed();return False
-    raw=read_file(saveslot.SAVE) if Path(saveslot.SAVE).exists() else b''
-    try:save_layout.rally_report(raw)
-    except save_layout.InvalidSave:raise WeekendRequired(FIRST_WEEKEND_MESSAGE)
     if read_file(saveslot.SAVE)!=raw:raise save_layout.InvalidSave('Zapis zmienił się podczas przygotowania. RUN wstrzymany.')
     if digest(raw) in meta.get('rejectedDigests',[]):raise save_layout.InvalidSave('Zapis jest oznaczony jako wadliwy. Przywróć kopię.')
     install_master(raw,meta,'initial-weekend')

@@ -96,6 +96,8 @@ class WebLaunchWindow:
         self.status=tk.StringVar(value='Łączenie z serwerem i weryfikacja biletu RUN...')
         tk.Label(root,textvariable=self.status,fg='#55e0ad',bg='#13212c',
                  wraplength=650,justify='left').pack(anchor='w',padx=18,pady=(0,12))
+        self.setup_notice=tk.StringVar(value='')
+        tk.Label(root,textvariable=self.setup_notice,fg='#ffd166',bg='#13212c',wraplength=650,justify='left').pack(anchor='w',padx=18,pady=(0,8))
         self.console_visible=False
         self.console_toggle=tk.Button(root,text='Rozwiń konsolę ▾',command=self.toggle_console)
         self.console_toggle.pack(anchor='w',padx=18,pady=(0,8))
@@ -130,7 +132,7 @@ class WebLaunchWindow:
         else:
             self.console_frame.pack_forget()
             self.console_toggle.configure(text='Rozwiń konsolę ▾')
-            self.root.geometry('760x330')
+            self.root.geometry('760x480' if self.setup_notice.get() else '760x330')
 
     def save_action(self,action):
         from . import save_safety
@@ -184,6 +186,9 @@ class WebLaunchWindow:
                     if lines>1200:self.text.delete('1.0',f'{lines-1200}.0')
                     self.text.see('end')
                     self.text.configure(state='disabled')
+                elif kind=='setup':
+                    self.setup_notice.set(data)
+                    if not self.console_visible:self.root.geometry('760x480' if data else '760x330')
                 elif kind=='dialog':
                     messagebox.showinfo('ACR Rally Club — pierwsza kopia',data)
                 elif kind=='navigation':
@@ -242,9 +247,11 @@ class WebLaunchWindow:
             except save_safety.WeekendRequired:
                 api.call('/api/launcher/abort',{})
                 api=None;self.finished=True
-                self.queue.put(('dialog',save_safety.FIRST_WEEKEND_MESSAGE))
+                self.queue.put(('setup',save_safety.FIRST_WEEKEND_MESSAGE))
+                self.log(save_safety.FIRST_WEEKEND_MESSAGE)
                 self.set_status('Najpierw utwórz Rally Weekend w grze · podejście Club zachowane')
-                self.set_navigation('Zamknij launcher i utwórz Rally Weekend w grze; następnie zamknij grę i kliknij RUN.')
+                self.set_navigation('Pozostaw launcher otwarty. Czekaj na żółte potwierdzenie utworzenia kopii; potem zamknij grę i kliknij RUN RALLY.')
+                self.observe_private_stages(setup=True)
                 return
             if Path(saveslot.SAVE).exists():save_safety.preflight()
             self.log(f'RUN potwierdzony: {nickname} · {event["name"]} · {len(event["stages"])} OS')
@@ -347,9 +354,15 @@ class WebLaunchWindow:
             self.set_status('Nadzór zakończony · '+monitor.status.upper())
             self.log('Koniec nadzoru: '+monitor.status)
 
-    def observe_private_stages(self,launch_game=False):
+    def observe_private_stages(self,launch_game=False,setup=False):
         from .save_safety import StageStartObserver
-        observer=StageStartObserver(self.log)
+        def emit(message):
+            self.log(message)
+            if setup and message.startswith('Kopia MASTER została'):
+                from .save_safety import SETUP_COMPLETE
+                self.queue.put(('setup',SETUP_COMPLETE))
+                self.set_status('Kopia gotowa · zamknij grę i kliknij RUN RALLY')
+        observer=StageStartObserver(emit)
         try:
             observer.poll()  # Re-arm restoration before starting the new game process.
             if launch_game and os.name=='nt':os.startfile('steam://rungameid/3917090')

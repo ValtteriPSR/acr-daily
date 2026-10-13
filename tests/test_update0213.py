@@ -73,7 +73,7 @@ class ConsoleTests(unittest.TestCase):
         node=next(n for n in ast.parse(source).body if isinstance(n,ast.ClassDef) and n.name=='WebLaunchWindow')
         method=next(n for n in node.body if isinstance(n,ast.FunctionDef) and n.name=='toggle_console')
         ns={};exec(compile(ast.Module(body=[method],type_ignores=[]),'<console toggle>','exec'),ns)
-        window=SimpleNamespace(console_visible=False,console_frame=mock.Mock(),console_toggle=mock.Mock(),root=mock.Mock())
+        window=SimpleNamespace(console_visible=False,console_frame=mock.Mock(),console_toggle=mock.Mock(),root=mock.Mock(),setup_notice=mock.Mock(get=lambda:''))
         ns['toggle_console'](window)
         self.assertTrue(window.console_visible);window.console_frame.pack.assert_called_once()
         ns['toggle_console'](window)

@@ -1,3 +1,10 @@
+## ACR Rally Club 0.2.14
+
+- Check missing SAV/Rally Weekend before stale pending/blocked launcher flags, without discarding protected copies. Missing data enters private setup instead of suggesting restoration from a copy that does not exist.
+- Keep the launcher open during setup. Show yellow instructions outside the collapsed console: create any Rally Weekend, start SS1 and wait for the countdown and Master confirmation, then exit and RUN RALLY. Private setup sends no Club start/results and consumes no Club attempt.
+- Show Master-created confirmation in yellow without expanding the console. Private SS proof clears stale local transaction markers only after a valid start; existing corruption/hash safeguards stay active.
+- Highlight Getting started / JAK WYSTARTOWAĆ in orange in navigation, with matching hover/current-page styles. Update the PL/EN guide and regression checks.
+
 ## ACR Rally Club 0.2.13
 
 - Hide the participant console by default with an expand/collapse button; remove the Block RUN button.

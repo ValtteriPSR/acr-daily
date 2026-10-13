@@ -22,6 +22,7 @@ main{max-width:1280px!important;margin:30px auto 0!important;padding:0 24px 65px
 .brand-symbol{width:43px;height:43px;display:grid;place-items:center;background:#ff7038;font:900 22px/1 system-ui;color:white}
 .brand-sub{display:block;text-transform:uppercase;font-size:10px;letter-spacing:.22em;color:var(--muted);font-weight:700;margin-top:-4px}
 .site-nav{display:flex;align-items:center;gap:4px;flex-wrap:wrap}.site-nav a{border:1px solid #626e85;display:inline-flex;gap:8px;align-items:center;padding:10px 13px;border-radius:7px;color:#c7cdd7;font-size:13px;font-weight:750;text-transform:uppercase;letter-spacing:.05em}.site-nav a:hover,.site-nav a[aria-current='page']{background:#242a35;color:#fff}
+.site-nav a[href='/guide']{color:#ffad55;border-color:#f28b30;background:#392717}.site-nav a[href='/guide']:hover,.site-nav a[href='/guide'][aria-current='page']{color:#ffd19d;background:#57361b;border-color:#ffad55}
 .site-nav .nav-admin{border:1px solid #525768;margin-left:9px}
 main>header:not(.sitebar),.hero{border:1px solid #303845;background:linear-gradient(120deg,#111827 0%,#0f1725 70%);border-radius:var(--radius);padding:clamp(26px,4vw,44px)!important;margin:25px 0!important;position:relative;overflow:hidden;display:block}
 .hero::before,main>header:not(.sitebar)::before{content:'';position:absolute;right:-160px;top:-110px;height:350px;width:460px;transform:rotate(-24deg);background:linear-gradient(90deg,transparent,#ec57540a 50%,#ec57541a 51%,transparent 52%,transparent 58%,#ec575414 59%,transparent 60%);pointer-events:none}

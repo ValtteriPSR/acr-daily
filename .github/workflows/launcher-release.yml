@@ -1,4 +1,4 @@
-# Release archives include verified translations and quiet single-copy Master recovery.
+# Release archives include private setup guidance, translations and single-copy Master recovery.
 name: Publish Windows launcher
 on:
   push:

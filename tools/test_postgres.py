@@ -64,7 +64,7 @@ def main():
 
     server.connect_database = connect
     modules = ['test_server', 'test_seasons', 'test_admin', 'test_http',
-               'test_season_http', 'test_web_launcher', 'test_v6_public', 'test_steam_auth', 'test_discord_notifications', 'test_rally_details', 'test_update024', 'test_update025', 'test_update026', 'test_update027', 'test_update028', 'test_update029', 'test_update0211', 'test_update0212', 'test_update0213']
+               'test_season_http', 'test_web_launcher', 'test_v6_public', 'test_steam_auth', 'test_discord_notifications', 'test_rally_details', 'test_update024', 'test_update025', 'test_update026', 'test_update027', 'test_update028', 'test_update029', 'test_update0211', 'test_update0212', 'test_update0213', 'test_update0214']
     try:
         suite = unittest.defaultTestLoader.loadTestsFromNames(modules)
         result = unittest.TextTestRunner(verbosity=2).run(suite)

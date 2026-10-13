@@ -1,8 +1,8 @@
-# Quiet automatic Master backup in 0.2.13
+# Quiet automatic Master backup in 0.2.14
 
 The console is collapsed by default; use **Rozwiń konsolę** to view it. Master creation is automatic and never asks for confirmation. Before the first Club write, the launcher preserves the existing private Rally Weekend save. The console reports when Master is generated/overwritten and reminds you to restore it in the launcher if the game has problems. A successful SS start confirms and replaces the single Master file. Old good/quarantine snapshots are removed after the new Master commits; there is no expanding per-stage archive. Quarantine and before-RUN backups use one replaceable file each.
 
-Only a missing Rally Weekend triggers a setup dialog: close the launcher, start ACR normally, create any Rally Weekend and wait for the SS countdown to finish without the launcher. No finish is needed. Exit ACR and RUN again. An existing weekend proceeds directly to Club.
+A missing SAV or Rally Weekend displays yellow setup instructions outside the collapsed console. Leave the launcher open, start ACR normally, create any Rally Weekend and wait for the first SS countdown to finish. This private run is not sent to Club and does not consume a Club attempt; different settings do not prevent a later RUN RALLY. Wait for the yellow Master-created confirmation, then you may exit without finishing, close the game and RUN RALLY again. The private observer does not prepare Club settings or start a Club attempt. An existing weekend proceeds directly to Club.
 
 After a load crash, close ACR and use **Przywróć potwierdzoną kopię**. Restart the launcher and game, then RUN. There is no Block RUN button. Restoration preserves the affected save separately and rejects its bad digest on later installs. Server results are unchanged; local progress may roll back. Quarantined server checkpoints require administrator review.
 
