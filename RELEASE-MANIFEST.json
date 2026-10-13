@@ -116,7 +116,7 @@
     "tests/test_v6_public.py": "a4fac38610e9a60c1bbbf4e91b536e5df1bf9af1a4cce5c76f481b5c91a29e57",
     "tests/test_web_launcher.py": "2ef3d573cdebfcef8e89ba37efa8524fe3de276b50d778a0a4b76107ba33c8c4",
     "tools/backup_club_db.py": "b239af03a0dbdcb6e899e488be96b2e7a6f996fc602cebb7feaf7e35509f0676",
-    "tools/browser_smoke.py": "b2c940934973a0994d62a476194356a99b1606480c0f699e73607ccae6c3f88a",
+    "tools/browser_smoke.py": "4d7169b0fbee46777d42975e7d54f97bc74abd051daf61e68dfb22fd06d514d9",
     "tools/check_weekend_integrity.py": "c21620573c2d2e71b7f554982da21714b933f876e6e9e9dc74eaa5576b0444a4",
     "tools/configure_public_launcher.py": "e057c959967bf3650359fe2d5985fbc42e42417e4e5b3a36e23ddc11fa01f801",
     "tools/export_club_catalog.py": "a3e3c9b01ec327dbd197699845766e6a8dbdd9beaeec5008513f505b19c3bf64",

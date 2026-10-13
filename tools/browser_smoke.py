@@ -71,7 +71,8 @@ def main():
                 page.locator('.trace-root > summary').click()
                 page.locator('.trace-driver > summary').first.click()
                 page.locator('[data-trace-stage] > summary').first.click()
-                page.locator('.trace-map polyline').first.wait_for(state='visible')
+                page.locator('.trace-map').first.wait_for(state='visible')
+                assert page.locator('.trace-map polyline').first.get_attribute('points')
                 assert store.state(driver)['status']=='active'
                 assert page.evaluate("getComputedStyle(document.querySelector('main a')).textDecorationLine==='none'")
                 store.stage_end(driver,ev['id'],0,60000,expected_settings(ev),12500)
