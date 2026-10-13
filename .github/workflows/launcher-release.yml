@@ -1,4 +1,4 @@
-# Release archives must include verified participant translations.
+# Release archives include verified translations and quiet single-copy Master recovery.
 name: Publish Windows launcher
 on:
   push:
