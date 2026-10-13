@@ -1,3 +1,10 @@
+## ACR Rally Club 0.2.15
+
+- Add Open launcher — save tools on the public Launcher page, in Polish and English. The acrclub://tools link has no participant ticket and opens the EXE management window without starting ACR, preparing Club settings or consuming an attempt.
+- If the launcher is already open, an authenticated local handoff focuses its current window without restarting the process, including during an active SS. Existing restore guards still require the game to be closed and the Club monitor to be inactive.
+- Strictly reject tickets, fragments or extra paths on the tools link. Windows frozen self-test checks both RUN and tools handoff; regression checks cover no-ticket startup and safe focus during an active SS. Browser checks verify the button in PL/EN at desktop/mobile sizes.
+- Requires installing launcher 0.2.15 once; older launchers do not recognize the new tools link. Subsequent tools access needs no reinstall or RUN RALLY.
+
 ## ACR Rally Club 0.2.14
 
 - Check missing SAV/Rally Weekend before stale pending/blocked launcher flags, without discarding protected copies. Missing data enters private setup instead of suggesting restoration from a copy that does not exist.

@@ -58,9 +58,11 @@ def main():
                                 text=page.locator('main').inner_text()
                                 assert 'Python' not in text and '.bat' not in text and 'Automatyczna nawigacja' not in text
                                 assert ('Steam' in text)
+                                assert page.locator('#launcher-tools a').get_attribute('href')=='acrclub://tools'
+                                assert '0.2.15' in page.locator('#launcher-tools').inner_text()
                             if path=='/guide':
                                 assert page.locator('#save-safety-guide').count()==1
-                                assert '0.2.14' in page.locator('#save-safety-guide').inner_text()
+                                assert '0.2.15' in page.locator('#save-safety-guide').inner_text()
                                 assert page.locator(".site-nav a[href='/guide']").evaluate('(element) => getComputedStyle(element).color') in ['rgb(255, 173, 85)', 'rgb(255, 209, 157)']
                             if path.startswith('/rally/'):
                                 assert page.locator('#rally-stage-results details[open]').count()==0

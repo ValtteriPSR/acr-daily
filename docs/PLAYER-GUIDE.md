@@ -1,3 +1,7 @@
+# Open launcher without a rally (0.2.15)
+
+Install launcher 0.2.15 once. On the website open **Launcher** and click **URUCHOM LAUNCHER — NARZĘDZIA ZAPISU**. Allow the browser to open ACR Rally Club. It opens the save tools without starting a rally or ACR; if already running, the current launcher window comes to the front without restarting an active attempt. Close ACR and finish monitoring before restoring a save.
+
 # Quiet automatic Master backup in 0.2.14
 
 The console is collapsed by default; use **Rozwiń konsolę** to view it. Master creation is automatic and never asks for confirmation. Before the first Club write, the launcher preserves the existing private Rally Weekend save. The console reports when Master is generated/overwritten and reminds you to restore it in the launcher if the game has problems. A successful SS start confirms and replaces the single Master file. Old good/quarantine snapshots are removed after the new Master commits; there is no expanding per-stage archive. Quarantine and before-RUN backups use one replaceable file each.

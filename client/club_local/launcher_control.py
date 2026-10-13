@@ -88,4 +88,6 @@ def self_test(validate):
         try:
             forward_run(directory,link,validate)
             assert received==[link]
+            forward_run(directory,'acrclub://tools',validate)
+            assert received==[link,'acrclub://tools']
         finally:control.close()

@@ -49,7 +49,10 @@ def configured_server():
 
 def parse_launch_link(link):
     parsed = urlsplit(link)
-    if parsed.scheme.lower() != 'acrclub' or parsed.netloc.lower() != 'start' or parsed.path not in ('','/'):
+    if parsed.scheme.lower() != 'acrclub' or parsed.path not in ('','/') or parsed.fragment:
+        raise ValueError('Niepoprawny adres acrclub://')
+    if parsed.netloc.lower()=='tools' and not parsed.query:return None
+    if parsed.netloc.lower() != 'start':
         raise ValueError('Niepoprawny adres acrclub://')
     qs = parse_qs(parsed.query, keep_blank_values=True)
     if set(qs) != {'ticket'} or len(qs['ticket']) != 1:
@@ -204,6 +207,10 @@ class WebLaunchWindow:
             self.root.after(120,self.drain)
 
     def handle_run(self,link):
+        if parse_launch_link(link) is None:
+            self.root.deiconify()
+            self.root.lift()
+            return  # Tools only: never restart an active attempt or launch ACR.
         from .launcher_control import restart_problem
         problem=restart_problem(self.monitor,saveslot.game_running(),preparing=not self.preparation_ready and not self.finished)
         self.root.lift()
