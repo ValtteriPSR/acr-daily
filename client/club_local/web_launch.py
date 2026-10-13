@@ -119,6 +119,13 @@ class WebLaunchWindow:
 
     def save_action(self,action):
         from . import save_safety
+        if not self.finished and self.preparation_ready and self.monitor and self.monitor.status=='registered' and not saveslot.game_running():
+            try:
+                self.monitor.api.call('/api/launcher/abort',{})
+                self.monitor.dead=True;self.finished=True
+                self.log('Nadzór przed startem anulowany bez zużycia podejścia. Narzędzia zapisu są dostępne.')
+            except Exception as exc:
+                messagebox.showwarning('Zapis ACR','Nie udało się zwolnić wstępnego RUN: '+str(exc));return
         if not self.finished or (self.monitor and self.monitor.status=='active'):
             messagebox.showwarning('Zapis ACR','Najpierw zakończ nadzór. Nie zmieniaj zapisu podczas przygotowania lub aktywnego rajdu.');return
         try:

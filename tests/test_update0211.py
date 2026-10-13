@@ -114,6 +114,10 @@ class SafetyTests(unittest.TestCase):
         with self.assertRaises(layout.InvalidSave):safety.preflight()
         self.assertEqual(self.path.stat().st_size,4*1024*1024+1)
         self.assertTrue(safety.state()['blocked'])
+    def test_missing_protected_copy_stops_run_before_overwrite(self):
+        good=safety.confirm_good();Path(good).unlink()
+        with self.assertRaises(layout.InvalidSave):safety.replace(self.raw)
+        self.assertEqual(self.path.read_bytes(),self.raw)
 
 
 class ServerSaveTests(unittest.TestCase):

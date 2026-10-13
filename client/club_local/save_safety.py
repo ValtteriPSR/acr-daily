@@ -53,6 +53,10 @@ def ensure_run_allowed():
     meta=state()
     if meta.get('blocked') or meta.get('pending'):raise save_layout.InvalidSave('RUN wstrzymany. Uruchom grę przez Steam bez RUN, zamknij ją i potwierdź działający zapis w launcherze. Przy awarii użyj odzyskiwania.')
     if not meta.get('good'):raise save_layout.InvalidSave('Pierwsza bezpieczna kopia: uruchom grę przez Steam bez RUN, sprawdź wejście do menu, zamknij ją i kliknij „Zapis działa — zachowaj kopię”. Potem ponownie użyj RUN.')
+    try:
+        good=meta['good']
+        if digest(read_file(good['path']))!=good['digest']:raise ValueError('Checksum')
+    except (OSError,KeyError,ValueError):raise save_layout.InvalidSave('Chroniona kopia jest niedostępna lub została zmieniona. RUN wstrzymany; potwierdź nowy działający zapis.')
 
 def preflight():
     from acr_daily import saveslot
