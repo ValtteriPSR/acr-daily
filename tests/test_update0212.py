@@ -43,6 +43,8 @@ class AutomaticMasterTests(unittest.TestCase):
         self.assertEqual(len(self.messages),1)
     def test_next_stage_start_updates_master_but_driving_and_menu_do_not(self):
         self.observer();self.start();first=safety.state()['good']['path']
+        meta=safety.state();meta['serverCopy']={'digest':'synthetic old checkpoint'};safety.record(meta)
+        self.start();self.assertNotIn('serverCopy',safety.state())
         changed=self.raw[:-1]+b'\1';self.path.write_bytes(changed)
         for clock in [300,400,None,900,1000]:self.poll(clock)
         self.assertEqual((self.dir/'Master.sav').read_bytes(),self.raw)
