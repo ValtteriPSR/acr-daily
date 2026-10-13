@@ -133,7 +133,7 @@
     "client/club_local/launcher_control.py": "f459a00a04d0632ec9e977f7086908d6d601fa6aad023ea6d386773c594c33cf",
     "tests/test_update028.py": "454488f1f9f8b70f27c9076a52a76b115d1aafdf5509d6c223ad6c6d67ea76fd",
     "server_local/admin_penalties.py": "2558167532026b0629a9fef047cedcff9d4c0f1dfb10d4dcdae0b69dc2679463",
-    "server_local/telemetry_audit.py": "0ff72c6757667559c9a6aff7b4bc96b6f6c83d822207cfbf7cdbd87ea013cfca",
+    "server_local/telemetry_audit.py": "5d0862e664dee6470ceb6533f48e229b10e397005ba6cd0f4316e02eeaf009b3",
     "client/club_local/trace_sender.py": "d5977ddf7a12de67e25a804b128f36403d2b7bae9b0eeded30b33f0d46988cc3",
     "tests/test_update029.py": "f6aa1e2dfde4b9a40628a3567312171bafbdefc86fb5c93ed9104efa7c6082f5"
   },

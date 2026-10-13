@@ -66,8 +66,8 @@ def _submit_locked(store,token,data):
             run=store.db.execute('SELECT * FROM telemetry_runs WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
             if seq!=(run['last_seq']+1 if run else 0):raise Fault(409,tr('Telemetry batch order differs'))
             count=run['point_count'] if run else 0
-            usage=store.db.execute('SELECT COALESCE(SUM(t.point_count),0),COALESCE(SUM(CASE WHEN p.event_id=? THEN t.point_count ELSE 0 END),0) FROM telemetry_runs t JOIN players p ON p.id=t.player_id',(p['event_id'],)).fetchone()
-            total,event_count=usage[0],usage[1]
+            usage=store.db.execute('SELECT COALESCE(SUM(t.point_count),0) AS total_points,COALESCE(SUM(CASE WHEN p.event_id=? THEN t.point_count ELSE 0 END),0) AS event_points FROM telemetry_runs t JOIN players p ON p.id=t.player_id',(p['event_id'],)).fetchone()
+            total,event_count=usage['total_points'],usage['event_points']
             if count+len(points)>MAX_STAGE_POINTS or event_count+len(points)>MAX_EVENT_POINTS or total+len(points)>MAX_TOTAL_POINTS:raise Fault(507,tr('Telemetry storage limit reached; racing times remain unaffected'))
             s=json.loads(run['summary']) if run else {'first_ms':points[0][0],'last_ms':points[0][0],'distance_m':0,'max_speed':0,'gaps':0,'jumps':0,'severe':0,'dropped':0,'gas_total':0,'gas_n':0,'brake_total':0,'brake_n':0,'air_n':0,'air_total':0,'last_point':None}
             for point in points:
