@@ -422,5 +422,8 @@
   "Could not start the launcher. Please try RUN again.": "Nie udało się uruchomić launchera. Ponownie kliknij RUN.",
   "Close ACR before RUN. Allow your browser to open the launcher. The ticket expires after 60 seconds.": "Przed RUN zamknij ACR. Zezwól przeglądarce na otwarcie launchera. Bilet wygasa po 60 sekundach.",
   "Enable JavaScript to open the launcher from this rally page.": "Włącz JavaScript, aby otworzyć launcher z tej strony rajdu.",
-  "Close": "Zamknij"
+  "Close": "Zamknij",
+  "Starting the rally": "Uruchamianie rajdu",
+  "▶ OPEN LAUNCHER": "▶ OTWÓRZ LAUNCHER",
+  "If prompted, select “Open ACR Club Launcher”.": "Jeśli przeglądarka zapyta, wybierz „Otwórz ACR Club Launcher”."
 }
