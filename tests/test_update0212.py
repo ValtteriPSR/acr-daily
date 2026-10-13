@@ -50,7 +50,8 @@ class AutomaticMasterTests(unittest.TestCase):
         self.assertEqual((self.dir/'Master.sav').read_bytes(),self.raw)
         self.start()
         self.assertEqual((self.dir/'Master.sav').read_bytes(),changed)
-        self.assertEqual(Path(first).read_bytes(),self.raw)
+        self.assertEqual(Path(first).read_bytes(),changed)
+        self.assertEqual(first,str(self.dir/'Master.sav'))
     def test_mismatched_car_track_and_non_advancing_timer_cannot_confirm(self):
         self.observer();self.poll(0);self.poll(100,track='Other');self.poll(200,track='Other')
         self.assertFalse(safety.state().get('good'))
@@ -82,19 +83,21 @@ class AutomaticMasterTests(unittest.TestCase):
         self.assertNotIn('restartRequired',safety.state())
         with self.assertRaises(layout.InvalidSave):safety.ensure_run_allowed()
         self.start();safety.ensure_run_allowed()
-    def test_retention_keeps_first_and_twenty_recent_confirmed_snapshots(self):
+    def test_repeated_starts_replace_one_master_without_accumulating_snapshots(self):
         first=None
         for i in range(25):
             self.path.write_bytes(self.raw[:-1]+bytes([i]))
             safety.confirm_stage_start()
             if first is None:first=safety.state()['good']['path']
-        self.assertEqual(len(safety.state()['confirmedCopies']),21)
+        self.assertEqual(len(safety.state()['confirmedCopies']),1)
         self.assertTrue(Path(first).exists())
-        self.assertEqual(len(list(self.dir.glob('confirmed-good-*.sav'))),21)
+        self.assertEqual(len(list(self.dir.glob('confirmed-good-*.sav'))),0)
+        self.assertEqual((self.dir/'Master.sav').read_bytes(),self.raw[:-1]+bytes([24]))
     def test_no_weekend_or_invalid_file_requests_initial_setup(self):
         self.assertTrue(safety.has_weekend());self.path.write_bytes(b'broken')
         self.assertFalse(safety.has_weekend())
-        self.assertEqual(safety.FIRST_WEEKEND_MESSAGE,'ustaw w grze dowolny Rally Weekend, uruchom pierwszy OS (nie musisz kończyć), wyjdź z gry i ponownie kliknij RUN.')
+        self.assertIn('Zamknij launcher',safety.FIRST_WEEKEND_MESSAGE)
+        self.assertIn('koniec odliczania',safety.FIRST_WEEKEND_MESSAGE)
     def test_failed_master_write_preserves_previous_protected_copy(self):
         self.observer();self.start();old=safety.state()['good'];self.path.write_bytes(self.raw[:-1]+b'\1')
         real=safety.atomic
@@ -106,19 +109,16 @@ class AutomaticMasterTests(unittest.TestCase):
         self.assertEqual(Path(old['path']).read_bytes(),self.raw)
 
 class FirstRunTests(unittest.TestCase):
-    def test_setup_abort_precedes_private_observation_and_never_writes_club_save(self):
-        for weekend in (False,True):
-            with self.subTest(weekend=weekend):
-                window=SimpleNamespace()
-                window.ticket='synthetic';window.queue=__import__('queue').Queue();window.log=mock.Mock()
-                window.set_status=mock.Mock();window.set_navigation=mock.Mock();window.observe_private_stages=mock.Mock()
-                api=mock.Mock(token=None)
-                api.call.return_value={'event':{'id':'synthetic'},'nickname':'Test','token':'test','playerId':1}
-                with mock.patch.dict(ui_globals,{'Api':lambda server:api}),mock.patch.object(safety,'needs_stage_proof',return_value=True),mock.patch.object(safety,'has_weekend',return_value=weekend):
-                    prepare(window)
-                self.assertEqual(api.call.call_args_list,[mock.call('/api/launcher/redeem',{'ticket':'synthetic'}),mock.call('/api/launcher/abort',{})])
-                window.observe_private_stages.assert_called_once()
-                self.assertEqual(window.queue.get()[0],'dialog')
+    def test_missing_weekend_aborts_without_private_observation(self):
+        window=SimpleNamespace(ticket='synthetic',queue=__import__('queue').Queue(),log=mock.Mock(),set_status=mock.Mock(),set_navigation=mock.Mock(),observe_private_stages=mock.Mock())
+        api=mock.Mock(token=None)
+        api.call.return_value={'event':{'id':'synthetic'},'nickname':'Test','token':'test','playerId':1}
+        with mock.patch.dict(ui_globals,{'Api':lambda server:api}),mock.patch.object(safety,'prepare_run',side_effect=safety.WeekendRequired(safety.FIRST_WEEKEND_MESSAGE)):
+            prepare(window)
+        self.assertEqual(api.call.call_args_list,[mock.call('/api/launcher/redeem',{'ticket':'synthetic'}),mock.call('/api/launcher/abort',{})])
+        window.observe_private_stages.assert_not_called()
+        self.assertEqual(window.queue.get(),('dialog',safety.FIRST_WEEKEND_MESSAGE))
+        window.log.assert_not_called()
     def test_participant_window_has_no_manual_confirmation_or_ram_loop(self):
         source=(ROOT/'client/club_local/web_launch.py').read_text()
         self.assertNotIn('log_memory',source)

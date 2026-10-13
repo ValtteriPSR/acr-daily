@@ -88,15 +88,19 @@ class WebLaunchWindow:
         self.restart_link=None
         self.preparation_ready=False
         root.title('ACR Rally Club V'+VERSION+' — start ze strony')
-        root.geometry('760x590')
-        root.minsize(620,450)
+        root.geometry('760x330')
+        root.minsize(620,300)
         root.configure(bg='#13212c')
         tk.Label(root,text='ACR RALLY CLUB',font=('Segoe UI',19,'bold'),
                  fg='white',bg='#13212c').pack(anchor='w',padx=18,pady=(14,5))
         self.status=tk.StringVar(value='Łączenie z serwerem i weryfikacja biletu RUN...')
         tk.Label(root,textvariable=self.status,fg='#55e0ad',bg='#13212c',
                  wraplength=650,justify='left').pack(anchor='w',padx=18,pady=(0,12))
-        self.text=scrolledtext.ScrolledText(root,background='#0c1822',foreground='#d7ecfa',
+        self.console_visible=False
+        self.console_toggle=tk.Button(root,text='Rozwiń konsolę ▾',command=self.toggle_console)
+        self.console_toggle.pack(anchor='w',padx=18,pady=(0,8))
+        self.console_frame=tk.Frame(root,bg='#13212c')
+        self.text=scrolledtext.ScrolledText(self.console_frame,background='#0c1822',foreground='#d7ecfa',
                                             height=15,font=('Consolas',10))
         self.text.pack(expand=True,fill='both',padx=18,pady=(0,16))
         self.text.tag_configure('warning',foreground='#ffd166')
@@ -105,7 +109,7 @@ class WebLaunchWindow:
         tk.Label(root,textvariable=self.nav_notice,fg='#55e0ad',bg='#13212c',
                  wraplength=650,justify='left').pack(anchor='w',padx=18,pady=(0,8))
         controls=tk.Frame(root,bg='#13212c');controls.pack(fill='x',padx=18,pady=(0,10))
-        for label,action in [('Przywróć potwierdzoną kopię','restore'),('Gra crashuje — zablokuj RUN','crash')]:
+        for label,action in [('Przywróć potwierdzoną kopię','restore')]:
             tk.Button(controls,text=label,command=lambda a=action:self.save_action(a)).pack(fill='x',pady=2)
         root.protocol('WM_DELETE_WINDOW',self.close)
         self.log('Wersja launchera: '+VERSION+' · nawigacja w menu ACR: RĘCZNA')
@@ -113,9 +117,20 @@ class WebLaunchWindow:
         if ticket is None:
             self.finished=True
             self.set_status('Narzędzia zapisu · gra musi być zamknięta podczas operacji')
-            self.set_navigation('Kopia Master tworzy się automatycznie na starcie OS. Zostaw launcher otwarty podczas prywatnego Rally Weekend. Po przywróceniu zrestartuj launcher i grę.')
+            self.set_navigation('Po przywróceniu zapisu zrestartuj launcher i grę.')
         self.worker=threading.Thread(target=self.prepare if ticket else self.observe_private_stages,daemon=True)
         self.worker.start()
+
+    def toggle_console(self):
+        self.console_visible=not self.console_visible
+        if self.console_visible:
+            self.console_frame.pack(after=self.console_toggle,expand=True,fill='both')
+            self.console_toggle.configure(text='Zwiń konsolę ▴')
+            self.root.geometry('760x590')
+        else:
+            self.console_frame.pack_forget()
+            self.console_toggle.configure(text='Rozwiń konsolę ▾')
+            self.root.geometry('760x330')
 
     def save_action(self,action):
         from . import save_safety
@@ -130,14 +145,12 @@ class WebLaunchWindow:
             messagebox.showwarning('Zapis ACR','Najpierw zakończ nadzór. Nie zmieniaj zapisu podczas przygotowania lub aktywnego rajdu.');return
         try:
             if action=='restore':
-                if not messagebox.askyesno('Przywrócenie zapisu','Przywrócić kopię potwierdzoną działaniem gry? Obecny zapis zostanie zachowany osobno. Kopia może cofnąć późniejsze zmiany i postęp. Rajd nie zostanie uruchomiony.'):
+                if not messagebox.askyesno('Przywrócenie zapisu','Przywrócić zachowaną kopię MASTER? Obecny zapis zostanie zachowany osobno. Kopia może cofnąć późniejsze zmiany i postęp. Rajd nie zostanie uruchomiony.'):
                     return
-                save_safety.restore_previous()
-                self.log('Przywrócono potwierdzoną kopię. Zrestartuj launcher i grę. Uruchom prywatny OS z otwartym launcherem, potem zamknij grę i kliknij RUN.')
-                messagebox.showinfo('Przywrócono zapis','Zrestartuj launcher i grę. Uruchom prywatny OS z otwartym launcherem, aby automatycznie potwierdzić kopię, następnie zamknij grę i kliknij RUN.')
-            else:
-                save_safety.report_crash();self.log('Awaria zapisu zgłoszona lokalnie. RUN zablokowany; wadliwy plik zachowano do analizy.')
                 source=save_safety.state().get('serverCopy')
+                save_safety.restore_previous()
+                self.log('Przywrócono potwierdzoną kopię. Zrestartuj launcher i grę, następnie kliknij RUN.')
+                messagebox.showinfo('Przywrócono zapis','Zrestartuj launcher i grę, następnie kliknij RUN.')
                 if source:
                     session=json.loads((data_dir()/'player-session.json').read_text(encoding='utf-8'))
                     if session.get('eventId')==source['eventId'] and session.get('playerId')==source['playerId']:
@@ -224,18 +237,14 @@ class WebLaunchWindow:
             player_id=launch['playerId']
             api.token=token
             from . import save_safety
-            if save_safety.needs_stage_proof():
+            try:
+                if save_safety.prepare_run():self.log(save_safety.MASTER_NOTICE)
+            except save_safety.WeekendRequired:
                 api.call('/api/launcher/abort',{})
-                api=None
-                self.finished=True
-                if not save_safety.has_weekend():
-                    self.queue.put(('dialog',save_safety.FIRST_WEEKEND_MESSAGE))
-                    self.log(save_safety.FIRST_WEEKEND_MESSAGE)
-                else:
-                    self.queue.put(('dialog','Brak aktualnej kopii Master. Uruchom pierwszy OS w swoim Rally Weekend z otwartym launcherem (nie musisz kończyć), wyjdź z gry i ponownie kliknij RUN. Kopia zapisze się automatycznie.'))
-                self.set_status('Oczekuję na start prywatnego OS · podejście Club nie zostało zużyte')
-                self.set_navigation('Zostaw launcher otwarty podczas pierwszego OS. Kopia Master powstanie automatycznie; potem zamknij grę i ponownie kliknij RUN.')
-                self.observe_private_stages(launch_game=save_safety.has_weekend())
+                api=None;self.finished=True
+                self.queue.put(('dialog',save_safety.FIRST_WEEKEND_MESSAGE))
+                self.set_status('Najpierw utwórz Rally Weekend w grze · podejście Club zachowane')
+                self.set_navigation('Zamknij launcher i utwórz Rally Weekend w grze; następnie zamknij grę i kliknij RUN.')
                 return
             if Path(saveslot.SAVE).exists():save_safety.preflight()
             self.log(f'RUN potwierdzony: {nickname} · {event["name"]} · {len(event["stages"])} OS')

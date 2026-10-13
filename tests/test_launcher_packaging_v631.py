@@ -59,6 +59,6 @@ class LauncherPackaging631(unittest.TestCase):
         self.assertTrue(sec.version_allowed('6.3.1'))
         for bad in ('0.2', 'v0.2.0', 'invalid', None):
             self.assertFalse(sec.version_allowed(bad))
-        self.assertEqual((ROOT/'VERSION').read_text().strip(), '0.2.12')
+        self.assertEqual((ROOT/'VERSION').read_text().strip(), '0.2.13')
 
 if __name__=='__main__':unittest.main()

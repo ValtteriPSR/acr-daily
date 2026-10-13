@@ -1,3 +1,11 @@
+## ACR Rally Club 0.2.13
+
+- Hide the participant console by default with an expand/collapse button; remove the Block RUN button.
+- Quietly preserve the existing private Rally Weekend save before the first Club write. No Master confirmation/setup request when a weekend already exists. Only a missing weekend shows instructions to create a weekend and pass the SS countdown with the launcher closed.
+- Report Master generation/replacement in the console with restoration guidance. A fresh, advancing SS start confirms and atomically replaces the single Master copy. Preserve the original until that confirmation; remove legacy good/quarantine archives only after the new copy commits. Single replaceable quarantine and before-RUN files prevent accumulation.
+- Restore directly from the protected copy and report a matching failed server checkpoint. Keep a restart requirement; a new launcher process with the game closed can RUN without a separate private proof stage. Rejected hashes cannot be installed again. Accepted server results remain unchanged.
+- Tests cover quiet initial preservation and immediate Club preparation, recovery before any successful Club SS, bounded copies, transactional metadata failure, and collapsed/expanded console. Full ACR telemetry behaviour still requires in-game testing.
+
 ## ACR Rally Club 0.2.12
 
 - Remove periodic RAM diagnostics from the participant log/window.

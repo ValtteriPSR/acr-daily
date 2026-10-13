@@ -1,8 +1,10 @@
-# Automatic Master backup in 0.2.12
+# Quiet automatic Master backup in 0.2.13
 
-Keep the launcher open during any private or Club Rally Weekend SS. On a fresh, advancing stage timer it automatically creates or refreshes `%LOCALAPPDATA%\ACR Rally Club\save-safety\Master.sav` with current settings. No manual Save works confirmation is needed. Before the first Club RUN, create any Rally Weekend and start its first SS (no finish required) with the launcher open; exit ACR and RUN again. A configured private weekend is opened automatically when stage proof is needed. No Club attempt is consumed during setup.
+The console is collapsed by default; use **Rozwiń konsolę** to view it. Master creation is automatic and never asks for confirmation. Before the first Club write, the launcher preserves the existing private Rally Weekend save. The console reports when Master is generated/overwritten and reminds you to restore it in the launcher if the game has problems. A successful SS start confirms and replaces the single Master file. Old good/quarantine snapshots are removed after the new Master commits; there is no expanding per-stage archive. Quarantine and before-RUN backups use one replaceable file each.
 
-After a load crash, close ACR, report the crash and use **Przywróć potwierdzoną kopię**. Restart the launcher and game, start a private SS with the launcher open for automatic confirmation, then exit ACR and RUN. Restore does not start a Club attempt or reset server results. Earlier local progress may be rolled back. The first protected snapshot and 20 recent confirmed snapshots are retained separately from working/quarantine copies. Quarantined server saves still require administrator review.
+Only a missing Rally Weekend triggers a setup dialog: close the launcher, start ACR normally, create any Rally Weekend and wait for the SS countdown to finish without the launcher. No finish is needed. Exit ACR and RUN again. An existing weekend proceeds directly to Club.
+
+After a load crash, close ACR and use **Przywróć potwierdzoną kopię**. Restart the launcher and game, then RUN. There is no Block RUN button. Restoration preserves the affected save separately and rejects its bad digest on later installs. Server results are unchanged; local progress may roll back. Quarantined server checkpoints require administrator review.
 
 # Player guide
 

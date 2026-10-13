@@ -36,10 +36,10 @@ def atomic(path,raw):
     finally:temporary.unlink(missing_ok=True)
 
 def archive(raw,kind):
-    p=directory()/(kind+'-'+time.strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:8]+'.sav')
-    atomic(p,raw)
     if kind in ('before-run','quarantine'):
-        for old in sorted(directory().glob(kind+'-*.sav'))[:-15]:old.unlink()
+        p=directory()/('BeforeRun.sav' if kind=='before-run' else 'Quarantine.sav')
+    else:p=directory()/(kind+'-'+time.strftime('%Y%m%d-%H%M%S')+'-'+uuid.uuid4().hex[:8]+'.sav')
+    atomic(p,raw)
     return str(p)
 
 def block(reason,raw=None):
@@ -51,12 +51,12 @@ def block(reason,raw=None):
 
 def ensure_run_allowed():
     meta=state()
-    if meta.get('blocked') or meta.get('pending'):raise save_layout.InvalidSave('RUN wstrzymany. Przy awarii przywróć potwierdzoną kopię, zrestartuj launcher i grę, następnie uruchom prywatny OS z otwartym launcherem.')
+    if meta.get('blocked') or meta.get('pending'):raise save_layout.InvalidSave('RUN wstrzymany po niepotwierdzonej podmianie. Przy problemach z grą przywróć kopię w launcherze i zrestartuj launcher oraz grę.')
     if not meta.get('good'):raise save_layout.InvalidSave(FIRST_WEEKEND_MESSAGE)
     try:
         good=meta['good']
         if digest(read_file(good['path']))!=good['digest']:raise ValueError('Checksum')
-    except (OSError,KeyError,ValueError):raise save_layout.InvalidSave('Chroniona kopia jest niedostępna lub została zmieniona. RUN wstrzymany; uruchom prywatny OS z otwartym launcherem.')
+    except (OSError,KeyError,ValueError):raise save_layout.InvalidSave('Chroniona kopia jest niedostępna lub została zmieniona. RUN wstrzymany; przywróć działający zapis.')
 
 def preflight():
     from acr_daily import saveslot
@@ -72,7 +72,9 @@ def replace(raw,expected_source_digest=None):
     from acr_daily import saveslot
     ensure_run_allowed()
     if saveslot.game_running():raise save_layout.InvalidSave('Zamknij ACR przed podmianą zapisu.')
-    save_layout.inspect(raw);path=Path(saveslot.SAVE)
+    save_layout.inspect(raw)
+    if digest(raw) in state().get('rejectedDigests',[]):raise save_layout.InvalidSave('Wadliwy zapis nie może zostać zainstalowany ponownie.')
+    path=Path(saveslot.SAVE)
     if path.exists():
         original=read_file(path)
         try:save_layout.inspect(original)
@@ -116,7 +118,10 @@ def restore_previous():
     save_layout.inspect(raw)
     if digest(raw) in meta.get('rejectedDigests',[]):raise save_layout.InvalidSave('Ta kopia została zgłoszona jako wadliwa. Wymagana inna, sprawdzona kopia.')
     path=Path(saveslot.SAVE)
-    if path.exists():archive(read_file(path),'quarantine')
+    if path.exists():
+        affected=read_file(path);meta['quarantine']=archive(affected,'quarantine')
+        if digest(affected)!=good['digest']:
+            meta['rejectedDigests']=list(dict.fromkeys(meta.get('rejectedDigests',[])+[digest(affected)]))[-50:]
     # Restore stays locked. It never invokes RUN or launches the game.
     meta['blocked']='Przywrócono kopię. Zrestartuj launcher i grę; uruchom prywatny OS z otwartym launcherem.'
     meta['restartRequired']=True
@@ -172,7 +177,42 @@ def self_test():
         globals()['directory']=old_dir;saveslot.SAVE=old_save;saveslot.game_running=old_running
 
 
-FIRST_WEEKEND_MESSAGE = 'ustaw w grze dowolny Rally Weekend, uruchom pierwszy OS (nie musisz kończyć), wyjdź z gry i ponownie kliknij RUN.'
+FIRST_WEEKEND_MESSAGE = 'Zamknij launcher. Uruchom grę normalnie i ustaw dowolny Rally Weekend. Uruchom pierwszy OS i poczekaj na koniec odliczania (nie musisz kończyć OS-u). Wyjdź z gry, następnie ponownie kliknij RUN na stronie klubu.'
+MASTER_NOTICE = 'Kopia MASTER została wygenerowana. W razie problemów z grą przywróć ją w launcherze.'
+
+class WeekendRequired(save_layout.InvalidSave):pass
+
+def install_master(raw,meta,proof):
+    target=directory()/'Master.sav'
+    old=read_file(target) if target.exists() else None
+    good={'path':str(target),'digest':digest(raw),'confirmedAt':time.time(),'proof':proof}
+    meta.update(good=good,master=str(target),confirmedCopies=[good])
+    atomic(target,raw)
+    try:record(meta)
+    except Exception:
+        if old is None:target.unlink(missing_ok=True)
+        else:atomic(target,old)
+        raise
+    return str(target)
+
+def prepare_run():
+    """Silent initial backup before the first Club write, no inferred SS proof."""
+    from acr_daily import saveslot
+    if saveslot.game_running():raise save_layout.InvalidSave('Zamknij grę przed RUN.')
+    meta=state()
+    if meta.get('restartRequired'):
+        if meta.get('restoreProcess')==os.getpid():raise save_layout.InvalidSave('Zrestartuj launcher i grę po przywróceniu zapisu.')
+        for key in ('restartRequired','restoreProcess','blocked','blockedAt'):meta.pop(key,None)
+        record(meta)
+    if meta.get('good') or meta.get('pending') or meta.get('blocked'):
+        ensure_run_allowed();return False
+    raw=read_file(saveslot.SAVE) if Path(saveslot.SAVE).exists() else b''
+    try:save_layout.rally_report(raw)
+    except save_layout.InvalidSave:raise WeekendRequired(FIRST_WEEKEND_MESSAGE)
+    if read_file(saveslot.SAVE)!=raw:raise save_layout.InvalidSave('Zapis zmienił się podczas przygotowania. RUN wstrzymany.')
+    if digest(raw) in meta.get('rejectedDigests',[]):raise save_layout.InvalidSave('Zapis jest oznaczony jako wadliwy. Przywróć kopię.')
+    install_master(raw,meta,'initial-weekend')
+    return True
 
 def has_weekend():
     from acr_daily import saveslot
@@ -189,7 +229,7 @@ def confirm_stage_start():
     """Only StageStartObserver may call this after a fresh, advancing clock.
 
     Reading twice refuses an in-flight game write. No writes to the game's SAV.
-    Archive first; a failed Master/state write retains previous confirmed files.
+    A failed Master/state commit restores the previous Master before returning.
     """
     from acr_daily import saveslot
     raw=read_file(saveslot.SAVE)
@@ -198,22 +238,13 @@ def confirm_stage_start():
     meta=state()
     if meta.get('restartRequired'):raise save_layout.InvalidSave('Zrestartuj launcher i grę przed potwierdzeniem OS.')
     if digest(raw) in meta.get('rejectedDigests',[]):raise save_layout.InvalidSave('Zapis zgłoszony jako wadliwy; kopia Master nie została zmieniona.')
-    target=directory()/'Master.sav'
-    if meta.get('good',{}).get('digest')==digest(raw) and target.exists() and digest(read_file(target))==digest(raw):
-        for key in ('blocked','blockedAt','badDigest','pending','serverCopy'):meta.pop(key,None)
-        record(meta);return str(target)
-    protected=archive(raw,'confirmed-good')
-    atomic(target,raw)
-    good={'path':protected,'digest':digest(raw),'confirmedAt':time.time(),'proof':'stage-start'}
-    meta.update(good=good,master=str(target))
-    copies=meta.get('confirmedCopies',[])+[good]
-    retained=copies if len(copies)<=21 else copies[:1]+copies[-20:]
-    meta['confirmedCopies']=retained
-    for key in ('blocked','blockedAt','badDigest','pending','serverCopy'):meta.pop(key,None)
-    record(meta)
-    for old in copies:
-        if old not in retained:Path(old['path']).unlink(missing_ok=True)
-    return str(target)
+    for key in ('blocked','blockedAt','badDigest','pending','serverCopy','quarantine'):meta.pop(key,None)
+    target=install_master(raw,meta,'stage-start')
+    # Remove legacy good/quarantine snapshots only after Master and metadata
+    # have committed. One current Master replaces the old copies atomically.
+    for pattern in ('confirmed-good-*.sav','quarantine-*.sav','before-run-*.sav','Quarantine.sav'):
+        for old in directory().glob(pattern):old.unlink(missing_ok=True)
+    return target
 
 class StageStartObserver:
     """Observe any private/Club stage independently of server attempt state."""
@@ -250,8 +281,10 @@ class StageStartObserver:
             self.pending=None
             if previous==identity and clock>first_clock:
                 try:
+                    existed=(directory()/'Master.sav').exists()
                     path=confirm_stage_start()
-                    self.emit('KOPIA MASTER: start OS potwierdzony; ustawienia zachowane automatycznie. '+path)
+                    notice=MASTER_NOTICE.replace('wygenerowana','nadpisana') if existed else MASTER_NOTICE
+                    self.emit(notice+' '+path)
                 except (OSError,ValueError) as exc:
                     self.emit('OSTRZEŻENIE: kopia Master nie została odświeżona: '+str(exc))
         self.previous=clock
