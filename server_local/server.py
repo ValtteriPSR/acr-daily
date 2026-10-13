@@ -712,7 +712,8 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     content+='</section>'
     from site_theme import RALLY_FILTER_JS
     trace_section,trace_script=telemetry_audit.section(ev['id'])
-    return shell('ACR Rally Club — '+ev['name'],content+trace_section,active='rallies',scripts=RALLY_FILTER_JS+__import__('live_results').SCRIPT+trace_script)
+    run_section,run_script=__import__('run_dialog').section()
+    return shell('ACR Rally Club — '+ev['name'],content+trace_section+run_section,active='rallies',scripts=RALLY_FILTER_JS+__import__('live_results').SCRIPT+trace_script+run_script)
 
 
 def _is_loopback_hostname(hostname):
@@ -1178,18 +1179,14 @@ def make_handler(store, admin=None, catalog_root=None):
                         cookie = enroll(store, event_id, data.get('nickname',''))
                         return self._redirect('/rally/' + quote(event_id, safe=''),
                                               cookie=make_cookie('acrclub_browser',cookie,secure=self._secure_cookie()))
+                    if 'application/json' not in self.headers.get('Accept',''):
+                        return self._redirect('/rally/'+quote(event_id,safe=''))
                     if member is not None:
                         ticket=mint_club_ticket(store,event_id,member['id'])
                     else:
                         ticket = mint_ticket(store, cookies.get('acrclub_browser'), event_id)
                     protocol = 'acrclub://start?ticket=' + quote(ticket,safe='')
-                    # Navigation might require an extra click in some browsers.
-                    # The launch ticket is single-use, short-lived and is not a bearer account token.
-                    safe = escape(protocol, quote=True)
-                    import json as _json
-                    page = (tr('<!doctype html><html lang="pl"><head><meta charset="utf-8"><title>Starting ACR Rally Club</title><style>') + STYLE + tr('</style></head><body><main><h1>Starting the rally</h1><section class="card"><p>If prompted, select “Open ACR Club Launcher”.</p><p><a class="run" style="display:inline-block" href="')+safe+tr('">▶ OPEN LAUNCHER</a></p><p><small>The ticket expires after 60 seconds. If nothing happens, check the launcher installation or return to the rally page.</small></p><p><a href="/rally/')+escape(event_id,quote=True)+tr('">← Rally</a></p></section></main><script>window.location.href=')+_json.dumps(protocol)+';</script></body></html>')
-                    return self._write(200, page, 'text/html; charset=utf-8',
-                                       {'Content-Security-Policy':"default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'"})
+                    return self._write(200, {'protocol':protocol,'expiresIn':60})
                 if path.startswith('/web/'):
                     raise Fault(404, tr('Not found'))
                 data = self._body()

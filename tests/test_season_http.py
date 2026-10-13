@@ -44,6 +44,7 @@ class SeasonHttpTests(unittest.TestCase):
     def post(self,path,payload):
         data=urlencode(payload).encode()
         headers={'Content-Type':'application/x-www-form-urlencoded','Origin':'null','Sec-Fetch-Site':'same-origin'}
+        if path=='/web/run':headers['Accept']='application/json'
         with self.browser.open(Request(self.url+path,data=data,headers=headers,method='POST')) as response:
             return response.read().decode()
 

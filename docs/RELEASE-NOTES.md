@@ -1,3 +1,11 @@
+## ACR Rally Club 0.2.10
+
+- RUN opens a compact dialog on the rally page. CSRF-protected single-use tickets expire after 60 seconds; no launch ticket is added to the rally URL.
+- Fix pre-existing partial shared-memory open leaks. Telemetry views use existing mappings with FILE_MAP_READ, bounded sizes, transactional cleanup, idempotent close and retry backoff. No game mappings are created, resized or written.
+- Visible launcher history is limited to 1200 lines. Launcher RAM/private bytes and available system memory are logged before game launch and every 30 seconds. Full event log stays on disk.
+- Stress tests cover 20,000 offline samples and thousands of failed partial opens. Windows frozen EXE tests actual disposable mapping/handle cleanup and memory-counter APIs.
+- The reported UE allocation of 68,008,017,920 bytes has NOT been reproduced or established as fixed. Version 0.2.9 save-writing/restoration code is identical to 0.2.8. Affected game logs/save and real ACR testing are needed to diagnose that crash.
+
 ## ACR Rally Club 0.2.9
 
 - Live review telemetry records world X/Z positions, speed and available control inputs at approximately 1 Hz. A separate worker sends bounded batches every 3 seconds during the SS. Timing and attempt monitoring do not wait for trace delivery. Short final batches may flush after the finish.

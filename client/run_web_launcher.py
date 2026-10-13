@@ -6,6 +6,10 @@ def self_test():
     from acr_daily import settings, saveslot, rallyweekend, telemetry, names, rallyclub
     from club_local import web_launch, monitor, integrity, web_install, launcher_control, trace_sender
     launcher_control.self_test(web_launch.parse_launch_link)
+    from club_local import read_only_memory, memory_diagnostics
+    read_only_memory.self_test()
+    if __import__('os').name == 'nt':
+        assert memory_diagnostics.snapshot(), 'Windows memory counters unavailable'
     assert callable(trace_sender.TraceSender)
     assert callable(launcher_control.serve_connection)
     assert callable(settings.load)

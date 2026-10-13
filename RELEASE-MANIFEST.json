@@ -1,6 +1,6 @@
 {
-  "version": "0.2.9",
-  "source": "ACR Rally Club 0.2.9: bounded live telemetry review, recorded driving paths and auditable administrator penalties",
+  "version": "0.2.10",
+  "source": "ACR Rally Club 0.2.10: in-page RUN dialog, telemetry handle cleanup and memory diagnostics",
   "upstream_repo": "https://github.com/khanhonthetrack/acr-daily",
   "upstream_pinned_commit": "135466d177e47039e0a8b6a6af2716379554c9e9",
   "catalog": {
@@ -138,11 +138,11 @@
     "tests/test_update029.py": "f6aa1e2dfde4b9a40628a3567312171bafbdefc86fb5c93ed9104efa7c6082f5"
   },
   "public_url": "https://acr-rally-club.onrender.com",
-  "release_url": "https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.4",
+  "release_url": "https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.10",
   "languages": [
     "pl",
     "en"
   ],
-  "launcher_version": "0.2.9",
-  "release_metadata_url": "https://github.com/ValtteriPSR/acr-daily/releases/download/v0.2.4/release-metadata.json"
+  "launcher_version": "0.2.10",
+  "release_metadata_url": "https://github.com/ValtteriPSR/acr-daily/releases/download/v0.2.10/release-metadata.json"
 }

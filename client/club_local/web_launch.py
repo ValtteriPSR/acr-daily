@@ -131,6 +131,8 @@ class WebLaunchWindow:
                 if kind=='log':
                     self.text.configure(state='normal')
                     self.text.insert('end',time.strftime('%H:%M:%S')+'  '+data+'\n',('warning',) if data.startswith(('OSTRZEŻENIE:','NIEZGODNOŚĆ')) else ())
+                    lines=int(self.text.index('end-1c').split('.')[0])
+                    if lines>1200:self.text.delete('1.0',f'{lines-1200}.0')
                     self.text.see('end')
                     self.text.configure(state='disabled')
                 elif kind=='navigation':
@@ -233,6 +235,7 @@ class WebLaunchWindow:
             if state['status']=='registered' and state.get('recoveryRequired'):
                 api.call('/api/recovery-ack',{'settings':integrity.read_and_check(event)})
             self.monitor=monitor
+            self.log_memory()
             preparation_complete=True
             self.set_status(f'Nadzór aktywny · oczekuję na START OS {monitor.stage_index+1}')
             navigation=('Otwórz Racing → Rally → Rally Weekend i kontynuuj zapisany rajd przed OS '+str(monitor.stage_index+1)+'. Nie twórz nowego Rally Weekend i nie zmieniaj samochodu ani ustawień.' if state['status']=='ready' else 'Przejdź samodzielnie: Racing → Rally → Rally Weekend → WYBIERZ SAMOCHÓD I NIE ZMIENIAJ ŻADNYCH USTAWIEŃ → START RALLY → opony → START STAGE.')
@@ -259,8 +262,12 @@ class WebLaunchWindow:
             self.set_status('Błąd uruchamiania · sprawdź szczegóły w dzienniku')
 
     def watch(self, monitor):
+        next_memory=time.monotonic()+30
         try:
             while self.running and not monitor.dead:
+                if time.monotonic()>=next_memory:
+                    self.log_memory()
+                    next_memory=time.monotonic()+30
                 try:
                     monitor.poll()
                     self.set_status('OSTRZEŻENIE · podejście zachowane. Zamknij grę i launcher, potem kliknij RUN.' if monitor.recovery_required else f'{monitor.status.upper()} · OS {min(monitor.stage_index+1,len(monitor.event["stages"]))}/{len(monitor.event["stages"])}')
@@ -276,6 +283,11 @@ class WebLaunchWindow:
             self.finished=True
             self.set_status('Nadzór zakończony · '+monitor.status.upper())
             self.log('Koniec nadzoru: '+monitor.status)
+
+    def log_memory(self):
+        from .memory_diagnostics import snapshot
+        value=snapshot()
+        if value:self.log(value)
 
     def close(self):
         if self.monitor and self.monitor.recovery_required:

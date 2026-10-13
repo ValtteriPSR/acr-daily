@@ -118,6 +118,17 @@ class WebLauncherHTTP(unittest.TestCase):
                 csrf=next(c.value for c in jar if c.name=='acrclub_csrf')
                 data=urlencode({'eventId':ev['id'],'csrf':csrf}).encode()
                 with browser.open(Request(address+'/web/run',data=data,headers={'Content-Type':'application/x-www-form-urlencoded'},method='POST')) as response:
+                    self.assertEqual(response.url,address+'/rally/'+ev['id'])
+                    self.assertIn('run-dialog',response.read().decode('utf-8'))
+                self.assertEqual(store.db.execute('SELECT COUNT(*) FROM launch_tickets').fetchone()[0],0)
+                bad=urlencode({'eventId':ev['id'],'csrf':'invalid'}).encode()
+                with self.assertRaises(HTTPError) as invalid_csrf:
+                    browser.open(Request(address+'/web/run',data=bad,headers={'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},method='POST'))
+                self.assertEqual(invalid_csrf.exception.code,403)
+                csrf=next(c.value for c in jar if c.name=='acrclub_csrf')
+                data=urlencode({'eventId':ev['id'],'csrf':csrf}).encode()
+                with browser.open(Request(address+'/web/run',data=data,headers={'Content-Type':'application/x-www-form-urlencoded','Accept':'application/json'},method='POST')) as response:
+                    self.assertIn('application/json',response.headers['Content-Type'])
                     page=response.read().decode('utf-8')
                 self.assertIn('acrclub://start?ticket=',page)
                 import re
@@ -226,6 +237,7 @@ class NullOriginFormTests(unittest.TestCase):
                 self.assertEqual(store.db.execute('SELECT COUNT(*) FROM players').fetchone()[0],1)
                 csrf=next(c.value for c in jar if c.name=='acrclub_csrf')
                 payload=urlencode({'eventId':ev['id'],'csrf':csrf}).encode()
+                headers['Accept']='application/json'
                 with browser.open(Request(base+'/web/run',data=payload,
                                           headers=headers,method='POST')) as response:
                     self.assertIn('acrclub://start?ticket=',response.read().decode())

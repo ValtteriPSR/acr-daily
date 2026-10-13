@@ -8,6 +8,8 @@ No process injection, save writes or guessed result-screen OCR is involved.
 import math
 import re
 import struct
+import time
+from .read_only_memory import Block, Source
 
 
 def penalty_from_bytes(data, frame):
@@ -28,8 +30,9 @@ class SharedMemory:
     def __init__(self):
         from acr_daily import telemetry
         self.telemetry=telemetry
-        self.source = telemetry.SharedMemory()
+        self.source = Source()
         self.penalty_block = None
+        self.next_penalty_open = 0.0
 
     @property
     def unloaded(self):
@@ -45,9 +48,12 @@ class SharedMemory:
         frame.penalty_ms = None
         try:
             if self.penalty_block is None:
-                self.penalty_block = self.telemetry._Block('acpmf_graphics', 1224)
+                if time.monotonic() < self.next_penalty_open:
+                    return frame
+                self.penalty_block = Block('acpmf_graphics', 1224)
             frame.penalty_ms = penalty_from_bytes(self.penalty_block.read(), frame)
         except (OSError, ValueError, struct.error):
+            self.next_penalty_open = time.monotonic() + 5.0
             # A short or unsupported mapping must not break normal timing.
             if self.penalty_block is not None:
                 self.penalty_block.close()

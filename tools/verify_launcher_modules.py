@@ -20,6 +20,8 @@ MODULES = (
     "club_local.monitor",
     "club_local.trace_sender",
     "club_local.live_penalties",
+    "club_local.read_only_memory",
+    "club_local.memory_diagnostics",
     "club_local.checkpoint_restore",
     "club_local.web_launch",
     "club_local.launcher_control",
