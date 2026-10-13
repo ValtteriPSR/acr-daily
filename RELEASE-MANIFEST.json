@@ -10,7 +10,7 @@
   "note": "230 regression tests including automatic stage-start Master backups, recovery locks, unchanged server attempts/results, and protected-copy retention. PL/EN browser, PostgreSQL, portable Docker and frozen Windows EXE checks run in CI. Actual ACR telemetry requires in-game verification.",
   "files": {
     ".dockerignore": "d6c115a5f6dd79db80e5858f19e6f3db1b1ab71ff8a86f654c2cdabb03aa675a",
-    ".github/workflows/launcher-release.yml": "b812e98eb23c68956cd7d753e971e40e36852c582cb80aff6ce394edba64be1b",
+    ".github/workflows/launcher-release.yml": "d2df69e099d0a37c3252e0bca2df54271e1de595e279830bb356148e770982ab",
     ".github/workflows/server-checks.yml": "6bc3af4040d8633c8cf2d824345f48b03c713091794cc6910a11b38213dc2e03",
     ".gitignore": "09c45fa1396e12299389a71f005e3f3447ce56702ee57e3e2b7f3686f7d45ff6",
     "LICENSE": "e41c13612721f384779ba3c746c741878ca0cf501bc64ad0d03183cfedd42075",
@@ -34,7 +34,7 @@
     "client/club_local/monitor.py": "660046861eee589d0b2c826611af9e436a3bf9546c841824ca01baee71b1fc39",
     "client/club_local/read_only_memory.py": "01396e6236c293077a965a9112e0c78b45a726dde4f0500ab5f8149d241c5043",
     "client/club_local/save_layout.py": "8ef8afbfaec25babfc18b543f4507593863c0b89232602ffc60ae73c4d927b13",
-    "client/club_local/save_safety.py": "c231849a215d8e5a1539b015c64c3720fdafe37fa282a235294515c816237652",
+    "client/club_local/save_safety.py": "8bb6153718feaaab03ab2664e1c0f822db6b50b4dbfd86c41ea827c7bc768c6b",
     "client/club_local/site_config.py": "3953f160e3bcd1779ba827b8bf1ea36c45dbb6292646ab9c42b75cbe92da8af9",
     "client/club_local/trace_sender.py": "d5977ddf7a12de67e25a804b128f36403d2b7bae9b0eeded30b33f0d46988cc3",
     "client/club_local/version.py": "096cdb6c6d556e0d097c45ba75f0e5bf82bd22e93959e521926ec606ebc4282b",
@@ -145,7 +145,7 @@
     "tools/vendor_acr_daily.py": "5a937bbf691e4fab81aa99e10a209a8f7e9f7b837308c339fa3f61e1187fe08a",
     "tools/verify_launcher_modules.py": "2434b90f1d80e6ac825471f1f68a16c6057aafcd234bd49309c7c76215c97dfd",
     "update_acr_catalogs.bat": "ca2d4f804a90efe6b982b9ef782732feb9a099cdedd9efa801300bcb66ab9f38",
-    "tests/test_update0212.py": "4894addcffe430e8c18a102192ef434a856eee53175e48686511fd25d9dc0b1c"
+    "tests/test_update0212.py": "aa4970137dc4adb23380164b28b7b2f0392bb0ca460a878b4b65923ff75f2f43"
   },
   "public_url": "https://acr-rally-club.onrender.com",
   "release_url": "https://github.com/ValtteriPSR/acr-daily/releases/tag/v0.2.12",
