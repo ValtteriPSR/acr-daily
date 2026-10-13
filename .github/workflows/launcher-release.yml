@@ -1,4 +1,4 @@
-# Release archives include standalone save tools, translations and Master recovery.
+# Release archives include accurate pause messages, translations and save tools.
 name: Publish Windows launcher
 on:
   push:

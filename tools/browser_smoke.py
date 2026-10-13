@@ -62,7 +62,7 @@ def main():
                                 assert '0.2.15' in page.locator('#launcher-tools').inner_text()
                             if path=='/guide':
                                 assert page.locator('#save-safety-guide').count()==1
-                                assert '0.2.15' in page.locator('#save-safety-guide').inner_text()
+                                assert '0.2.16' in page.locator('#save-safety-guide').inner_text()
                                 assert page.locator(".site-nav a[href='/guide']").evaluate('(element) => getComputedStyle(element).color') in ['rgb(255, 173, 85)', 'rgb(255, 209, 157)']
                             if path.startswith('/rally/'):
                                 assert page.locator('#rally-stage-results details[open]').count()==0

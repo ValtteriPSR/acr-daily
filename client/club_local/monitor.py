@@ -213,12 +213,25 @@ class AttemptMonitor:
 
     def _reject_integrity(self, reason):
         reason = str(reason)[:250]
-        self.emit(f'DNF · OS {min(self.stage_index+1,len(self.event["stages"]))} — niezgodne ustawienia Rally Weekend: ' + reason)
+        index=min(self.stage_index+1,len(self.event['stages']))
         try:
-            self.api.call('/api/integrity-violation', {'reason':reason})
+            outcome=self.api.call('/api/integrity-violation', {'reason':reason})
         except ApiError as exc:
             self.emit('Nie udało się przekazać DNF: '+str(exc))
-        self.status = 'dnf'
+            self.status='dnf'
+            self.dead=True
+            return
+        if outcome.get('recoveryRequired') and outcome.get('status') in ('registered','ready'):
+            self.status=outcome['status']
+            self.recovery_required=True
+            self.recovery_notified=True
+            if reason=='Wyjście z gry poza dozwolonym serwisem; rajd musi być kontynuowany bez zamykania gry':
+                self.emit(f'PRZERWA · OS {index}: wyjście przed startem timera OS-u. Podejście zachowane — wznów od tego OS-u przez RUN RALLY na stronie.')
+            else:
+                self.emit(f'OSTRZEŻENIE · OS {index}: podejście zachowane; przywróć zapis przez RUN RALLY na stronie. '+reason)
+        else:
+            self.status=outcome.get('status','dnf')
+            self.emit(f'DNF · OS {index} — niezgodne ustawienia Rally Weekend: '+reason)
         self.dead = True
 
     def _request_recovery(self,reason):

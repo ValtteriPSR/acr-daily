@@ -1,3 +1,10 @@
+## ACR Rally Club 0.2.16
+
+- Clarify the breaks-allowed condition: exiting at service or before the SS clock starts is permitted.
+- Report the server response before announcing DNF. A ready/registered attempt with recoveryRequired is shown as a preserved break/warning, including exit from the SS2 start line before the countdown ends; the launcher final status follows the existing server status.
+- Keep the same integrity-violation requests, checkpoint rules and attempt accounting. Actual active-stage or one-sitting DNF remains DNF.
+- Regression checks distinguish preserved prestart exit from actual active-stage DNF. No server race/exit policy changes.
+
 ## ACR Rally Club 0.2.15
 
 - Add Open launcher — save tools on the public Launcher page, in Polish and English. The acrclub://tools link has no participant ticket and opens the EXE management window without starting ACR, preparing Club settings or consuming an attempt.
