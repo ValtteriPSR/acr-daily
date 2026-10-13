@@ -1,3 +1,11 @@
+## ACR Rally Club 0.2.12
+
+- Remove periodic RAM diagnostics from the participant log/window.
+- Replace manual Save works confirmation with automatic Master.sav creation and refresh only on a fresh, advancing SS timer, for private and Club weekends. Stable bounded reads and save validation still apply. No writes to the game save while it runs.
+- First RUN checks a configured private Rally Weekend before preparing Club settings. Missing weekends display setup instructions; existing weekends with no current stage proof open ACR for a private SS, without consuming a Club attempt. Keep the launcher open, start SS, exit ACR and RUN again.
+- Restore retains quarantine and RUN lock, requests launcher/game restart, and requires automatic SS proof before another RUN. Preserve the first protected copy plus 20 recent snapshots; reported-bad hashes stay excluded. Existing 0.2.11 confirmed copies remain usable.
+- Update the PL/EN website guide and Windows packaging tests. Synthetic tests cover fresh SS starts, menu/mid-stage/repeated timer rejection, corrupt or changing file reads, pending-write confirmation, protected retention and restart requirements. Actual game telemetry must still be verified in ACR.
+
 ## ACR Rally Club 0.2.11
 
 - Fix the actual save-corruption bug: parse mode/context/component lengths to park only the Rally Weekend state. Never scan to the next Default key. Preserve every byte outside Rally Weekend, except the required enclosing payload length.

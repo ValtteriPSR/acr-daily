@@ -1,4 +1,4 @@
-"""Protected, user-confirmed good copies, quarantine and atomic writes."""
+"""Protected, stage-start-confirmed good copies, quarantine and atomic writes."""
 import hashlib
 import json
 import os
@@ -51,12 +51,12 @@ def block(reason,raw=None):
 
 def ensure_run_allowed():
     meta=state()
-    if meta.get('blocked') or meta.get('pending'):raise save_layout.InvalidSave('RUN wstrzymany. Uruchom grę przez Steam bez RUN, zamknij ją i potwierdź działający zapis w launcherze. Przy awarii użyj odzyskiwania.')
-    if not meta.get('good'):raise save_layout.InvalidSave('Pierwsza bezpieczna kopia: uruchom grę przez Steam bez RUN, sprawdź wejście do menu, zamknij ją i kliknij „Zapis działa — zachowaj kopię”. Potem ponownie użyj RUN.')
+    if meta.get('blocked') or meta.get('pending'):raise save_layout.InvalidSave('RUN wstrzymany. Przy awarii przywróć potwierdzoną kopię, zrestartuj launcher i grę, następnie uruchom prywatny OS z otwartym launcherem.')
+    if not meta.get('good'):raise save_layout.InvalidSave(FIRST_WEEKEND_MESSAGE)
     try:
         good=meta['good']
         if digest(read_file(good['path']))!=good['digest']:raise ValueError('Checksum')
-    except (OSError,KeyError,ValueError):raise save_layout.InvalidSave('Chroniona kopia jest niedostępna lub została zmieniona. RUN wstrzymany; potwierdź nowy działający zapis.')
+    except (OSError,KeyError,ValueError):raise save_layout.InvalidSave('Chroniona kopia jest niedostępna lub została zmieniona. RUN wstrzymany; uruchom prywatny OS z otwartym launcherem.')
 
 def preflight():
     from acr_daily import saveslot
@@ -110,7 +110,7 @@ def restore_previous():
     meta=state();candidates=meta.get('confirmedCopies') or ([meta['good']] if meta.get('good') else [])
     good=next((x for x in reversed(candidates) if x['digest'] not in meta.get('rejectedDigests',[])),None)
     # A before-RUN file is not automatically considered a known-good file.
-    if not good:raise save_layout.InvalidSave('Brak kopii potwierdzonej działaniem gry. Zachowane kopie robocze są w: '+str(directory())+'. Przywróć sprawdzony zapis ręcznie i potwierdź jego działanie.')
+    if not good:raise save_layout.InvalidSave('Brak kopii potwierdzonej działaniem gry. Zachowane kopie robocze są w: '+str(directory())+'. Przywróć sprawdzony zapis ręcznie i uruchom prywatny OS z otwartym launcherem.')
     raw=read_file(good['path'])
     if digest(raw)!=good['digest']:raise save_layout.InvalidSave('Kopia potwierdzona ma inną sumę kontrolną.')
     save_layout.inspect(raw)
@@ -118,7 +118,9 @@ def restore_previous():
     path=Path(saveslot.SAVE)
     if path.exists():archive(read_file(path),'quarantine')
     # Restore stays locked. It never invokes RUN or launches the game.
-    meta['blocked']='Przywrócono kopię; sprawdź grę przez Steam i potwierdź jej działanie.'
+    meta['blocked']='Przywrócono kopię. Zrestartuj launcher i grę; uruchom prywatny OS z otwartym launcherem.'
+    meta['restartRequired']=True
+    meta['restoreProcess']=os.getpid()
     meta.pop('pending',None);record(meta);atomic(path,raw)
     return good['path']
 
@@ -135,21 +137,123 @@ def self_test():
     from acr_daily import saveslot
     import struct
     def sf(s):return struct.pack('<i',len(s)+1)+s.encode()+b'\0'
-    component=sf('RaceEventSyntheticComponent')+struct.pack('<i',0)
-    body=struct.pack('<i',1)+sf('DefaultRally')+struct.pack('<i',1)+sf('ERaceEventSerializableContext::RaceEventSettings')+struct.pack('<ii',0,1)+component+sf('GreeceS1TestForward')+sf('VWPoloGTIR5')+struct.pack('<i',0)+bytes(32)
+    header=bytearray(96);header[86]=1  # Supported light-penalty rule.
+    stage=sf('GreeceS1TestForward')
+    calendar=sf('GreeceWeekendShort')+struct.pack('<ii',1,0)+stage+bytes(84)+sf('NoZone')+bytes(24)
+    settings=bytes(header)+calendar
+    component=sf('RaceEventRaceSettingsRallyWeekendComponent')+struct.pack('<i',len(settings))+settings
+    body=struct.pack('<i',1)+sf('DefaultRally')+struct.pack('<i',1)+sf('ERaceEventSerializableContext::RaceEventSettings')+struct.pack('<ii',0,1)+component+stage+sf('VWPoloGTIR5')+struct.pack('<i',0)+bytes(32)
     raw=b'GVAS'+bytes(16)+b'PlayerSaveGameData\0'+struct.pack('<i',len(body))+body
     old_dir=globals()['directory'];old_save=saveslot.SAVE;old_running=saveslot.game_running
     try:
         with tempfile.TemporaryDirectory() as temp:
             globals()['directory']=lambda:Path(temp)
             saveslot.SAVE=str(Path(temp)/'synthetic.sav');saveslot.game_running=lambda:False
-            Path(saveslot.SAVE).write_bytes(raw);confirm_good()
+            from types import SimpleNamespace
+            frames=iter(SimpleNamespace(clock_ms=n,track='Synthetic stage',car='Synthetic car') for n in (0,100,200))
+            observer=StageStartObserver(lambda message:None,SimpleNamespace(read=lambda:next(frames),close=lambda:None))
+            Path(saveslot.SAVE).write_bytes(raw)
+            for _ in range(3):observer.poll()
+            assert (Path(temp)/'Master.sav').read_bytes()==raw
+            ensure_run_allowed()
             changed=raw[:-1]+b'\1';replace(changed)
             try:ensure_run_allowed()
             except save_layout.InvalidSave:pass
             else:raise AssertionError('Unconfirmed write did not block RUN')
             report_crash();restore_previous()
             assert Path(saveslot.SAVE).read_bytes()==raw
-            confirm_good();ensure_run_allowed()
+            # Model a restarted EXE in the isolated self-test, then a new SS.
+            meta=state();meta['restoreProcess']=-1;record(meta)
+            frames=iter(SimpleNamespace(clock_ms=n,track='Synthetic stage',car='Synthetic car') for n in (0,100,200))
+            observer=StageStartObserver(lambda message:None,SimpleNamespace(read=lambda:next(frames),close=lambda:None))
+            for _ in range(3):observer.poll()
+            ensure_run_allowed()
     finally:
         globals()['directory']=old_dir;saveslot.SAVE=old_save;saveslot.game_running=old_running
+
+
+FIRST_WEEKEND_MESSAGE = 'ustaw w grze dowolny Rally Weekend, uruchom pierwszy OS (nie musisz kończyć), wyjdź z gry i ponownie kliknij RUN.'
+
+def has_weekend():
+    from acr_daily import saveslot
+    try:
+        report,_=save_layout.rally_report(read_file(saveslot.SAVE))
+        return bool(report['stages'])
+    except (OSError,ValueError):return False
+
+def needs_stage_proof():
+    try:ensure_run_allowed();return False
+    except save_layout.InvalidSave:return True
+
+def confirm_stage_start():
+    """Only StageStartObserver may call this after a fresh, advancing clock.
+
+    Reading twice refuses an in-flight game write. No writes to the game's SAV.
+    Archive first; a failed Master/state write retains previous confirmed files.
+    """
+    from acr_daily import saveslot
+    raw=read_file(saveslot.SAVE)
+    save_layout.rally_report(raw)
+    if read_file(saveslot.SAVE)!=raw:raise save_layout.InvalidSave('Gra zapisuje plik; kopia pominięta dla tego startu OS.')
+    meta=state()
+    if meta.get('restartRequired'):raise save_layout.InvalidSave('Zrestartuj launcher i grę przed potwierdzeniem OS.')
+    if digest(raw) in meta.get('rejectedDigests',[]):raise save_layout.InvalidSave('Zapis zgłoszony jako wadliwy; kopia Master nie została zmieniona.')
+    target=directory()/'Master.sav'
+    if meta.get('good',{}).get('digest')==digest(raw) and target.exists() and digest(read_file(target))==digest(raw):
+        for key in ('blocked','blockedAt','badDigest','pending'):meta.pop(key,None)
+        record(meta);return str(target)
+    protected=archive(raw,'confirmed-good')
+    atomic(target,raw)
+    good={'path':protected,'digest':digest(raw),'confirmedAt':time.time(),'proof':'stage-start'}
+    meta.update(good=good,master=str(target))
+    copies=meta.get('confirmedCopies',[])+[good]
+    retained=copies if len(copies)<=21 else copies[:1]+copies[-20:]
+    meta['confirmedCopies']=retained
+    for key in ('blocked','blockedAt','badDigest','pending','serverCopy'):meta.pop(key,None)
+    record(meta)
+    for old in copies:
+        if old not in retained:Path(old['path']).unlink(missing_ok=True)
+    return str(target)
+
+class StageStartObserver:
+    """Observe any private/Club stage independently of server attempt state."""
+    def __init__(self,emit,source=None):
+        if source is None:
+            from .live_penalties import SharedMemory
+            source=SharedMemory()
+        self.source=source;self.emit=emit
+        self.zero=None;self.previous=None;self.pending=None
+        # A restoration requires a new EXE and a closed game before rearming.
+        from acr_daily import saveslot
+        self.await_game_exit=bool(state().get('restartRequired'))
+        self.game_running=saveslot.game_running
+
+    def poll(self):
+        if self.await_game_exit:
+            if state().get('restoreProcess')==os.getpid() or self.game_running():return
+            meta=state();meta.pop('restartRequired',None);meta.pop('restoreProcess',None);record(meta)
+            self.await_game_exit=False
+        f=self.source.read()
+        if f is None:
+            self.zero=None;self.previous=None;self.pending=None;return
+        track=getattr(f,'track',None);car=getattr(f,'car',None)
+        if not track or not car:return
+        identity=(track,car)
+        clock=f.clock_ms
+        if clock<=0:
+            self.zero=identity;self.previous=None;self.pending=None;return
+        if self.zero==identity:
+            self.pending=(identity,clock);self.zero=None;return
+        if self.pending:
+            previous,first_clock=self.pending
+            if previous==identity and clock==first_clock:return
+            self.pending=None
+            if previous==identity and clock>first_clock:
+                try:
+                    path=confirm_stage_start()
+                    self.emit('KOPIA MASTER: start OS potwierdzony; ustawienia zachowane automatycznie. '+path)
+                except (OSError,ValueError) as exc:
+                    self.emit('OSTRZEŻENIE: kopia Master nie została odświeżona: '+str(exc))
+        self.previous=clock
+
+    def close(self):self.source.close()

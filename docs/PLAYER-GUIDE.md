@@ -1,6 +1,8 @@
-# Save safety in 0.2.11
+# Automatic Master backup in 0.2.12
 
-Start ACR through Steam without RUN, enter the menu, exit normally, and confirm the working save in the EXE save tools before your first RUN. After a prepared/restored save successfully loads, confirm it after closing the game before a later RUN. Report load crashes in the tools. Restore a confirmed copy, test it via Steam without RUN, then confirm. Protected copies are separate from working/quarantine backups. Server quarantine needs administrator review and does not reset stage results. Older local copies may roll back local progress.
+Keep the launcher open during any private or Club Rally Weekend SS. On a fresh, advancing stage timer it automatically creates or refreshes `%LOCALAPPDATA%\ACR Rally Club\save-safety\Master.sav` with current settings. No manual Save works confirmation is needed. Before the first Club RUN, create any Rally Weekend and start its first SS (no finish required) with the launcher open; exit ACR and RUN again. A configured private weekend is opened automatically when stage proof is needed. No Club attempt is consumed during setup.
+
+After a load crash, close ACR, report the crash and use **Przywróć potwierdzoną kopię**. Restart the launcher and game, start a private SS with the launcher open for automatic confirmation, then exit ACR and RUN. Restore does not start a Club attempt or reset server results. Earlier local progress may be rolled back. The first protected snapshot and 20 recent confirmed snapshots are retained separately from working/quarantine copies. Quarantined server saves still require administrator review.
 
 # Player guide
 

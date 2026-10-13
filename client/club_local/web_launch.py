@@ -105,7 +105,7 @@ class WebLaunchWindow:
         tk.Label(root,textvariable=self.nav_notice,fg='#55e0ad',bg='#13212c',
                  wraplength=650,justify='left').pack(anchor='w',padx=18,pady=(0,8))
         controls=tk.Frame(root,bg='#13212c');controls.pack(fill='x',padx=18,pady=(0,10))
-        for label,action in [('Zapis działa — zachowaj kopię','confirm'),('Przywróć potwierdzoną kopię','restore'),('Gra crashuje — zablokuj RUN','crash')]:
+        for label,action in [('Przywróć potwierdzoną kopię','restore'),('Gra crashuje — zablokuj RUN','crash')]:
             tk.Button(controls,text=label,command=lambda a=action:self.save_action(a)).pack(fill='x',pady=2)
         root.protocol('WM_DELETE_WINDOW',self.close)
         self.log('Wersja launchera: '+VERSION+' · nawigacja w menu ACR: RĘCZNA')
@@ -113,8 +113,8 @@ class WebLaunchWindow:
         if ticket is None:
             self.finished=True
             self.set_status('Narzędzia zapisu · gra musi być zamknięta podczas operacji')
-            self.set_navigation('Sprawdź grę przez Steam bez RUN, zamknij ją, następnie potwierdź działający zapis. Przywracanie nie rozpoczyna rajdu.')
-        self.worker=threading.Thread(target=self.prepare if ticket else lambda:None,daemon=True)
+            self.set_navigation('Kopia Master tworzy się automatycznie na starcie OS. Zostaw launcher otwarty podczas prywatnego Rally Weekend. Po przywróceniu zrestartuj launcher i grę.')
+        self.worker=threading.Thread(target=self.prepare if ticket else self.observe_private_stages,daemon=True)
         self.worker.start()
 
     def save_action(self,action):
@@ -129,14 +129,12 @@ class WebLaunchWindow:
         if not self.finished or (self.monitor and self.monitor.status=='active'):
             messagebox.showwarning('Zapis ACR','Najpierw zakończ nadzór. Nie zmieniaj zapisu podczas przygotowania lub aktywnego rajdu.');return
         try:
-            if action=='confirm':
-                if not messagebox.askyesno('Potwierdzenie działającego zapisu','Czy po ostatniej podmianie gra uruchomiła się poprawnie, weszła do menu i została normalnie zamknięta? Potwierdź tylko po rzeczywistej próbie przez Steam.'):
-                    return
-                save_safety.confirm_good();self.log('Chroniona kopia działającego zapisu zachowana. Możesz ponownie kliknąć RUN na stronie.')
-            elif action=='restore':
+            if action=='restore':
                 if not messagebox.askyesno('Przywrócenie zapisu','Przywrócić kopię potwierdzoną działaniem gry? Obecny zapis zostanie zachowany osobno. Kopia może cofnąć późniejsze zmiany i postęp. Rajd nie zostanie uruchomiony.'):
                     return
-                save_safety.restore_previous();self.log('Przywrócono potwierdzoną kopię. Sprawdź grę przez Steam bez RUN; po zamknięciu potwierdź działanie zapisu.')
+                save_safety.restore_previous()
+                self.log('Przywrócono potwierdzoną kopię. Zrestartuj launcher i grę. Uruchom prywatny OS z otwartym launcherem, potem zamknij grę i kliknij RUN.')
+                messagebox.showinfo('Przywrócono zapis','Zrestartuj launcher i grę. Uruchom prywatny OS z otwartym launcherem, aby automatycznie potwierdzić kopię, następnie zamknij grę i kliknij RUN.')
             else:
                 save_safety.report_crash();self.log('Awaria zapisu zgłoszona lokalnie. RUN zablokowany; wadliwy plik zachowano do analizy.')
                 source=save_safety.state().get('serverCopy')
@@ -173,6 +171,8 @@ class WebLaunchWindow:
                     if lines>1200:self.text.delete('1.0',f'{lines-1200}.0')
                     self.text.see('end')
                     self.text.configure(state='disabled')
+                elif kind=='dialog':
+                    messagebox.showinfo('ACR Rally Club — pierwsza kopia',data)
                 elif kind=='navigation':
                     self.nav_notice.set(data)
                 elif kind=='restart':
@@ -224,7 +224,19 @@ class WebLaunchWindow:
             player_id=launch['playerId']
             api.token=token
             from . import save_safety
-            save_safety.ensure_run_allowed()
+            if save_safety.needs_stage_proof():
+                api.call('/api/launcher/abort',{})
+                api=None
+                self.finished=True
+                if not save_safety.has_weekend():
+                    self.queue.put(('dialog',save_safety.FIRST_WEEKEND_MESSAGE))
+                    self.log(save_safety.FIRST_WEEKEND_MESSAGE)
+                else:
+                    self.queue.put(('dialog','Brak aktualnej kopii Master. Uruchom pierwszy OS w swoim Rally Weekend z otwartym launcherem (nie musisz kończyć), wyjdź z gry i ponownie kliknij RUN. Kopia zapisze się automatycznie.'))
+                self.set_status('Oczekuję na start prywatnego OS · podejście Club nie zostało zużyte')
+                self.set_navigation('Zostaw launcher otwarty podczas pierwszego OS. Kopia Master powstanie automatycznie; potem zamknij grę i ponownie kliknij RUN.')
+                self.observe_private_stages(launch_game=save_safety.has_weekend())
+                return
             if Path(saveslot.SAVE).exists():save_safety.preflight()
             self.log(f'RUN potwierdzony: {nickname} · {event["name"]} · {len(event["stages"])} OS')
             catalog=api.call('/api/catalog')
@@ -276,7 +288,6 @@ class WebLaunchWindow:
             if state['status']=='registered' and state.get('recoveryRequired'):
                 api.call('/api/recovery-ack',{'settings':integrity.read_and_check(event)})
             self.monitor=monitor
-            self.log_memory()
             preparation_complete=True
             self.set_status(f'Nadzór aktywny · oczekuję na START OS {monitor.stage_index+1}')
             navigation=('Otwórz Racing → Rally → Rally Weekend i kontynuuj zapisany rajd przed OS '+str(monitor.stage_index+1)+'. Nie twórz nowego Rally Weekend i nie zmieniaj samochodu ani ustawień.' if state['status']=='ready' else 'Przejdź samodzielnie: Racing → Rally → Rally Weekend → WYBIERZ SAMOCHÓD I NIE ZMIENIAJ ŻADNYCH USTAWIEŃ → START RALLY → opony → START STAGE.')
@@ -289,6 +300,7 @@ class WebLaunchWindow:
                 self.log('Symulacja poza Windows: nie uruchamiam Steam')
             self.preparation_ready=True
             self.watch(monitor)
+            self.observe_private_stages()
         except Exception as exc:
             self.finished=True
             if not preparation_complete and api is not None and getattr(api,'token',None):
@@ -301,15 +313,15 @@ class WebLaunchWindow:
             if not preparation_complete and ('sav' in str(exc).lower() or isinstance(exc,(FileNotFoundError,integrity.IntegrityError))):
                 self.log('Jeśli brakuje poprawnego pliku Rally Weekend: ustaw w grze dowolny Rally Weekend, uruchom OS (nie musisz kończyć), wyjdź z gry i kliknij ponownie RUN na stronie. Nie zmieniaj ustawień rajdu po RUN.')
             self.set_status('Błąd uruchamiania · sprawdź szczegóły w dzienniku')
+            self.observe_private_stages()
 
     def watch(self, monitor):
-        next_memory=time.monotonic()+30
+        from .save_safety import StageStartObserver
+        observer=StageStartObserver(self.log)
         try:
             while self.running and not monitor.dead:
-                if time.monotonic()>=next_memory:
-                    self.log_memory()
-                    next_memory=time.monotonic()+30
                 try:
+                    observer.poll()
                     monitor.poll()
                     self.set_status('OSTRZEŻENIE · podejście zachowane. Zamknij grę i launcher, potem kliknij RUN.' if monitor.recovery_required else f'{monitor.status.upper()} · OS {min(monitor.stage_index+1,len(monitor.event["stages"]))}/{len(monitor.event["stages"])}')
                 except Exception as exc:
@@ -319,16 +331,26 @@ class WebLaunchWindow:
                     break
                 time.sleep(.10)
         finally:
+            observer.close()
             try: monitor.close()
             except Exception as exc: self.log('Błąd zamykania monitoringu: '+str(exc))
             self.finished=True
             self.set_status('Nadzór zakończony · '+monitor.status.upper())
             self.log('Koniec nadzoru: '+monitor.status)
 
-    def log_memory(self):
-        from .memory_diagnostics import snapshot
-        value=snapshot()
-        if value:self.log(value)
+    def observe_private_stages(self,launch_game=False):
+        from .save_safety import StageStartObserver
+        observer=StageStartObserver(self.log)
+        try:
+            observer.poll()  # Re-arm restoration before starting the new game process.
+            if launch_game and os.name=='nt':os.startfile('steam://rungameid/3917090')
+            while self.running:
+                try:observer.poll()
+                except (OSError,ValueError) as exc:
+                    self.log('OSTRZEŻENIE: obserwacja kopii Master wstrzymana: '+str(exc))
+                    return
+                time.sleep(.10)
+        finally:observer.close()
 
     def close(self):
         if self.monitor and self.monitor.recovery_required:
