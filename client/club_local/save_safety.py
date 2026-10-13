@@ -200,7 +200,7 @@ def confirm_stage_start():
     if digest(raw) in meta.get('rejectedDigests',[]):raise save_layout.InvalidSave('Zapis zgłoszony jako wadliwy; kopia Master nie została zmieniona.')
     target=directory()/'Master.sav'
     if meta.get('good',{}).get('digest')==digest(raw) and target.exists() and digest(read_file(target))==digest(raw):
-        for key in ('blocked','blockedAt','badDigest','pending'):meta.pop(key,None)
+        for key in ('blocked','blockedAt','badDigest','pending','serverCopy'):meta.pop(key,None)
         record(meta);return str(target)
     protected=archive(raw,'confirmed-good')
     atomic(target,raw)
