@@ -30,8 +30,14 @@ def main():
         try:
             with sync_playwright() as p:
                 browser=p.chromium.launch()
-                page=browser.new_page(viewport={'width':1280,'height':900})
+                page=browser.new_page(viewport={'width':1280,'height':900},color_scheme='dark')
                 page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(origin+'/')
+                page.locator('#themeBtn').click()
+                assert page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(239, 233, 222)'")
+                page.reload()
+                assert page.locator('html').get_attribute('data-theme')=='light'
+                page.locator('#themeBtn').click()
                 page.goto(origin+admin_path(auth.key_path))
                 page.locator('#adminKey').fill(auth._secret);page.locator('#loginBtn').click();page.locator('#workspace').wait_for(state='visible')
                 page.locator('#brandTitle').fill('Custom Rally Club')
@@ -40,7 +46,7 @@ def main():
                 page.locator('#brandDiscord').fill('https://discord.gg/club42')
                 with page.expect_navigation():page.locator('#saveBrand').click()
                 page.locator('#workspace').wait_for(state='visible')
-                assert 'Custom Rally Club' in page.locator('.brand').inner_text()
+                assert 'Custom Rally Club' in page.locator('.brand').text_content()
                 page.locator('#newEvent').click();page.locator('#allowBreaks').wait_for(state='visible')
                 assert page.locator('#allowBreaks option').count()==2
                 for lang in ('pl','en'):
