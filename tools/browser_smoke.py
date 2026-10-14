@@ -59,7 +59,14 @@ def main():
                                 print('Overflow nodes:',page.evaluate("[...document.querySelectorAll('main *, .sitebar *')].filter(e=>{const r=e.getBoundingClientRect();return r.right>innerWidth+1 && getComputedStyle(e).position!=='absolute'}).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width,text:e.textContent.slice(0,70)})).slice(0,15)"))
                                 raise AssertionError((lang,width,path,'page overflow'))
                             assert page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(13, 19, 32)'"),(lang,width,path,'background')
-                            assert page.locator('.discord-invite').get_attribute('href')=='https://discord.gg/club42'
+                            if not path.startswith(admin_path(auth.key_path)):
+                                assert page.locator('.discord-invite').get_attribute('href')=='https://discord.gg/club42'
+                                if width==390 and path=='/':
+                                    page.locator('#burger').click()
+                                    assert page.locator('#mobnav').is_visible()
+                                    assert page.locator('#burger').get_attribute('aria-expanded')=='true'
+                                    page.locator('#burger').click()
+                                    assert not page.locator('#mobnav').is_visible()
                             if path=='/launcher':
                                 text=page.locator('main').inner_text()
                                 assert 'Python' not in text and '.bat' not in text and 'Automatyczna nawigacja' not in text
