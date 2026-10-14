@@ -141,13 +141,19 @@ def member_by_cookie(store, token, *, steam_only=False):
     if not isinstance(token,str) or not 40 <= len(token) <= 128:
         return None
     with store.lock:
-        row=store.db.execute('''SELECT m.id,m.nickname,m.nickname_key,s.steam_verified,a.steam_id FROM club_sessions s
+        row=store.db.execute('''SELECT m.id,m.nickname,m.nickname_key,s.steam_verified,a.steam_id,s.expires FROM club_sessions s
                 JOIN club_members m ON m.id=s.member_id
                 LEFT JOIN club_steam_accounts a ON a.member_id=m.id
-                WHERE s.session_hash=? AND s.expires>?''',(_hash(token),_now())).fetchone()
+                WHERE s.session_hash=?''',(_hash(token),)).fetchone()
+        if row and row['expires'] <= _now():
+            return None
         if row and steam_only and (not row['steam_verified'] or not row['steam_id']):
             return None
-        return dict(row) if row else None
+        if row:
+            out=dict(row)
+            out.pop('expires',None)
+            return out
+        return None
 
 
 def _new_session(store, member_id, *, steam_verified=False):

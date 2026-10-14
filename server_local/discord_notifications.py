@@ -196,10 +196,24 @@ class Worker:
     def tick(self):
         store = self.store
         with store.lock:
+            watch=('discord_settings','players','events','results','provisional','admin_time_penalties',
+                   'telemetry_penalties','seasons','season_events','season_member_assignments','club_members')
+            signature=store.db.signature(watch)
+            if signature==getattr(self,'_signature',None) and time.time()<getattr(self,'_next_tick',0):
+                return
             row, cfg = _settings(store)
             now = time.time()
-            if not cfg.get('enabled') or row['next_attempt'] > now:
+            self._signature=signature
+            self._next_tick=now+3600
+            if not cfg.get('enabled'):
                 return
+            if row['next_attempt'] > now:
+                self._next_tick=min(self._next_tick,row['next_attempt'])
+                return
+            boundaries=store.db.execute('SELECT opens,closes FROM events WHERE closes>?',(now,)).fetchall()
+            for event in boundaries:
+                for deadline in (event['opens'],event['closes']):
+                    if deadline>now:self._next_tick=min(self._next_tick,deadline+.01)
             events = [dict(r) for r in store.db.execute('SELECT id,closes FROM events WHERE opens<=? AND closes>=? ORDER BY closes', (now, cfg['since']))]
         # At most four requests per poll. Persisted message IDs survive deployment.
         budget = 4
@@ -251,5 +265,6 @@ class Worker:
                 self.tick()
             except Exception:
                 # Keep notifier failures isolated from timing/game requests. No secrets in logs.
+                self._signature=None
                 print('Discord notification worker: internal error; retry scheduled', flush=True)
             self.stop_event.wait(15)

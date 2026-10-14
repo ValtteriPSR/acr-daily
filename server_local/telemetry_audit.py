@@ -1,8 +1,9 @@
 """Bounded live trace review. Client-reported telemetry is evidence, not attestation."""
-import hashlib,json,math,time
+import base64,hashlib,json,math,time,zlib
 from html import escape
 from i18n import tr
 RETENTION=30*86400
+ARCHIVE_RETENTION=7*86400
 MAX_STAGE_POINTS=16000
 MAX_EVENT_POINTS=200000
 MAX_TOTAL_POINTS=1000000
@@ -23,7 +24,36 @@ def expire(store,now):
     if now-getattr(store,'_trace_cleanup_at',0)<30:return
     store._trace_cleanup_at=now
     for table in ('telemetry_chunks','telemetry_runs'):
-        store.db.execute('DELETE FROM '+table+' WHERE player_id IN (SELECT p.id FROM players p JOIN events e ON e.id=p.event_id WHERE e.closes<=?)',(now-RETENTION,))
+        store.db.execute('DELETE FROM '+table+''' WHERE player_id IN (
+          SELECT p.id FROM players p JOIN events e ON e.id=p.event_id WHERE
+          (e.closes<=? AND NOT EXISTS (SELECT 1 FROM season_events se WHERE se.event_id=e.id)) OR
+          (e.closes<=? AND EXISTS (SELECT 1 FROM season_events se JOIN seasons s ON s.id=se.season_id
+             WHERE se.event_id=e.id AND s.closes<=?)))''', (now-RETENTION,now-ARCHIVE_RETENTION,now))
+
+
+def expired(store,event_id,closes,now):
+    season=store.db.execute('''SELECT s.closes FROM seasons s JOIN season_events se ON se.season_id=s.id
+      WHERE se.event_id=?''',(event_id,)).fetchone()
+    return (now>=closes+ARCHIVE_RETENTION and now>=season['closes']) if season else now>=closes+RETENTION
+
+
+def pack_payload(payload):
+    packed='z1:'+base64.b64encode(zlib.compress(payload.encode(),6)).decode()
+    return packed if len(packed)<len(payload) else payload
+
+
+def unpack_payload(payload):
+    if not payload.startswith('z1:'):
+        return json.loads(payload)
+    decoder=zlib.decompressobj()
+    raw=decoder.decompress(base64.b64decode(payload[3:],validate=True),65537)
+    if len(raw)>65536 or not decoder.eof or decoder.unused_data:
+        raise ValueError('Invalid compressed telemetry')
+    return json.loads(raw)
+
+
+def expired_message():
+    return tr('Telemetry expired; results and penalties remain.')
 
 
 def _point(p):
@@ -49,7 +79,7 @@ def _submit_locked(store,token,data):
         store._begin()
         try:
             p=store._auth(token);row,ev=store.event(p['event_id']);now=time.time()
-            if now>=row['closes']+RETENTION:raise Fault(410,tr('Telemetry retention has expired'))
+            if expired(store,p['event_id'],row['closes'],now):raise Fault(410,tr('Telemetry retention has expired'))
             idx=data.get('stageIndex');seq=data.get('seq');points=data.get('points');dropped=data.get('dropped',0)
             if data.get('eventId')!=p['event_id'] or type(idx) is not int or not 0<=idx<len(ev['stages']) or type(seq) is not int or not 0<=seq<=6000 or type(dropped) is not int or not 0<=dropped<=1000000 or not isinstance(points,list) or not 1<=len(points)<=12 or not all(_point(x) for x in points):
                 raise Fault(400,tr('Invalid live telemetry batch'))
@@ -87,7 +117,7 @@ def _submit_locked(store,token,data):
                     if point[index] is not None:s[key+'_total']+=point[index];s[key+'_n']+=1
                 if point[9] is not None:s['air_n']+=1;s['air_total']+=int(point[9])
             s['dropped']=max(s['dropped'],dropped)
-            store.db.execute('INSERT INTO telemetry_chunks(player_id,stage_index,seq,payload,digest,received) VALUES(?,?,?,?,?,?)',(p['id'],idx,seq,payload,digest,now))
+            store.db.execute('INSERT INTO telemetry_chunks(player_id,stage_index,seq,payload,digest,received) VALUES(?,?,?,?,?,?)',(p['id'],idx,seq,pack_payload(payload),digest,now))
             store.db.execute('''INSERT INTO telemetry_runs(player_id,stage_index,point_count,last_seq,summary,updated) VALUES(?,?,?,?,?,?)
               ON CONFLICT(player_id,stage_index) DO UPDATE SET point_count=excluded.point_count,last_seq=excluded.last_seq,summary=excluded.summary,updated=excluded.updated''',(p['id'],idx,count+len(points),seq,json.dumps(s,separators=(',',':')),now))
             store.db.execute('COMMIT');return {'ok':True}
@@ -118,7 +148,7 @@ def summaries(store,event_id):
     from server import Fault
     with store.lock:
         row,ev=store.event(event_id)
-        if time.time()>=row['closes']+RETENTION:return '<p class="muted">'+escape(tr('Telemetry expired after 30 days; results remain.'))+'</p>'
+        if expired(store,event_id,row['closes'],time.time()):return '<p class="muted">'+escape(expired_message())+'</p>'
         rows=store.db.execute('''SELECT p.id,p.nickname,p.status,p.stage_index,t.stage_index AS recorded_stage,t.point_count,t.summary,t.updated,
           t.last_seq,r.raw_ms,v.clock_ms FROM players p LEFT JOIN telemetry_runs t ON t.player_id=p.id
           LEFT JOIN results r ON r.player_id=p.id AND r.stage_index=t.stage_index
@@ -176,13 +206,13 @@ def driver(store,event_id,player_id):
         row,ev=store.event(event_id)
         p=store.db.execute('SELECT nickname,status FROM players WHERE id=? AND event_id=?',(player_id,event_id)).fetchone()
         if not p:raise Fault(404,tr('Driver does not belong to this rally'))
-        if time.time()>=row['closes']+RETENTION:return '<p>'+escape(tr('Telemetry expired after 30 days; results remain.'))+'</p>'
+        if expired(store,event_id,row['closes'],time.time()):return '<p>'+escape(expired_message())+'</p>'
         runs=store.db.execute('SELECT * FROM telemetry_runs WHERE player_id=? ORDER BY stage_index',(player_id,)).fetchall()
         out=''
         for run in runs:
             points=[]
             for chunk in store.db.execute('SELECT payload FROM telemetry_chunks WHERE player_id=? AND stage_index=? ORDER BY seq',(player_id,run['stage_index'])):
-                points.extend(json.loads(chunk['payload'])['points'])
+                points.extend(unpack_payload(chunk['payload'])['points'])
             s=json.loads(run['summary']);out+='<details class="round" data-trace-stage="'+str(run['stage_index'])+'"><summary>'+escape(tr('SS '))+str(run['stage_index']+1)+' · '+escape(ev['stages'][run['stage_index']]['stageId'])+'</summary>'
             info=[str(run['point_count'])+' '+tr('samples'),'%.2f km'%(s['distance_m']/1000),tr('Maximum speed')+': %.1f km/h'%s['max_speed']]
             if s['gas_n']:info.append(tr('Average gas')+': %.0f%%'%(s['gas_total']/s['gas_n']*100))

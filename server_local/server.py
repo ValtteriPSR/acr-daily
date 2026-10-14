@@ -142,7 +142,8 @@ class Store:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.inactive = inactive
         self.lock = threading.RLock()
-        self.db = connect_database(self.path)
+        from idle_database import IdleDatabase
+        self.db = IdleDatabase(connect_database(self.path))
         self.db.executescript(r"""
         CREATE TABLE IF NOT EXISTS events (
           id TEXT PRIMARY KEY, config TEXT NOT NULL, opens REAL NOT NULL, closes REAL NOT NULL);
@@ -175,6 +176,10 @@ class Store:
         self.db.execute('''CREATE TABLE IF NOT EXISTS admin_audit (
           id INTEGER PRIMARY KEY AUTOINCREMENT, ts REAL NOT NULL, peer TEXT NOT NULL,
           action TEXT NOT NULL, event_id TEXT, details TEXT NOT NULL)''')
+        self.db.execute('CREATE INDEX IF NOT EXISTS players_timeout ON players(status,last_seen)')
+        self.db.execute('CREATE INDEX IF NOT EXISTS events_closing ON events(closes)')
+        # Prime maintenance once; idle background ticks then need no SQL.
+        self._sweep()
 
     def _begin(self):
         self.db.execute('BEGIN IMMEDIATE')
@@ -275,6 +280,9 @@ class Store:
 
     def _sweep(self):
         now = time.time()
+        import idle_maintenance
+        if not idle_maintenance.needed(self, now):
+            return
         telemetry_audit.expire(self,now)
         self.db.execute("""UPDATE players SET status='dnf',terminal_reason='Missing complete official results after finish', started=NULL
             WHERE status='awaiting_results' AND last_seen < ?""", (now - 600,))
@@ -286,6 +294,7 @@ class Store:
         self.db.execute('''DELETE FROM rally_recovery WHERE player_id IN
           (SELECT p.id FROM players p JOIN events e ON e.id=p.event_id
            WHERE e.closes<=? OR p.status IN ('dnf','completed'))''',(now,))
+        idle_maintenance.schedule(self, now)
 
     def _auth(self, token):
         if not isinstance(token, str) or len(token) < 40:

@@ -52,11 +52,15 @@ def browser_player(store, cookie, event_id):
     if not isinstance(cookie, str) or not 40 <= len(cookie) <= 128:
         return None
     with store.lock:
-        row = store.db.execute('''SELECT p.* FROM web_sessions s
+        row = store.db.execute('''SELECT p.*,s.expires AS session_expires FROM web_sessions s
           JOIN players p ON p.id=s.player_id
-          WHERE s.session_hash=? AND s.expires > ? AND p.event_id=?''',
-          (digest(cookie), time.time(), event_id)).fetchone()
-        return dict(row) if row else None
+          WHERE s.session_hash=? AND p.event_id=?''',
+          (digest(cookie), event_id)).fetchone()
+        if not row or row['session_expires'] <= time.time():
+            return None
+        out=dict(row)
+        out.pop('session_expires',None)
+        return out
 
 
 def mint_ticket(store, cookie, event_id):
