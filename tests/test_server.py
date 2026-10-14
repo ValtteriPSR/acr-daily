@@ -10,6 +10,9 @@ from server import Store, Fault, site
 from integrity_rules import expected_settings
 
 
+import timing_guard  # testy symulują OS natychmiast; zegar serwera sprawdza test_projectsimracing.py
+timing_guard.HARD_LIMIT_MS = timing_guard.REVIEW_LIMIT_MS = float('inf')
+
 def event():
     now=datetime.now(timezone.utc)
     return {'id':'greece-test-2026','name':'Rally Zeli test','location':'Greece',

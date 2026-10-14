@@ -13,6 +13,9 @@ import discord_notifications as discord
 
 WEBHOOK = 'https://discord.com/api/webhooks/123456789012345678/' + 'a'*60
 
+import timing_guard  # testy symulują OS natychmiast; zegar serwera sprawdza test_projectsimracing.py
+timing_guard.HARD_LIMIT_MS = timing_guard.REVIEW_LIMIT_MS = float('inf')
+
 class DiscordTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

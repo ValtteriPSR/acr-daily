@@ -52,7 +52,7 @@ def main():
                             if not page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'):
                                 print('Overflow nodes:',page.evaluate("[...document.querySelectorAll('main *, .sitebar *')].filter(e=>{const r=e.getBoundingClientRect();return r.right>innerWidth+1 && getComputedStyle(e).position!=='absolute'}).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width,text:e.textContent.slice(0,70)})).slice(0,15)"))
                                 raise AssertionError((lang,width,path,'page overflow'))
-                            assert page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(20, 29, 48)'"),(lang,width,path,'background')
+                            assert page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(13, 19, 32)'"),(lang,width,path,'background')
                             assert page.locator('.discord-invite').get_attribute('href')=='https://discord.gg/club42'
                             if path=='/launcher':
                                 text=page.locator('main').inner_text()
@@ -63,7 +63,7 @@ def main():
                             if path=='/guide':
                                 assert page.locator('#save-safety-guide').count()==1
                                 assert '0.2.16' in page.locator('#save-safety-guide').inner_text()
-                                assert page.locator(".site-nav a[href='/guide']").evaluate('(element) => getComputedStyle(element).color') in ['rgb(255, 173, 85)', 'rgb(255, 209, 157)']
+                                assert page.locator(".site-nav a[href='/guide']").evaluate('(element) => getComputedStyle(element).color')=='rgb(237, 71, 3)'
                             if path.startswith('/rally/'):
                                 assert page.locator('#rally-stage-results details[open]').count()==0
                         page.goto(origin+'/');assert page.locator('a[href$="/ACR-Rally-Club-Setup.exe"]').first.get_attribute('href').startswith('https://github.com/')

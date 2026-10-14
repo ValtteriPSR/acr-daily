@@ -123,7 +123,8 @@ refresh().catch(()=>{});
 
 
 def html():
-    return admin_shell(enhance_deletion(tr(PAGE)))
+    from local_time import polish_admin_time
+    return admin_shell(polish_admin_time(enhance_deletion(tr(PAGE))))
 
 
 def enhance_deletion(page):

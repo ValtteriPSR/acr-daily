@@ -12,6 +12,9 @@ from club_local.trace_sender import TraceSender
 from i18n import _language
 
 
+import timing_guard  # testy symulują OS natychmiast; zegar serwera sprawdza test_projectsimracing.py
+timing_guard.HARD_LIMIT_MS = timing_guard.REVIEW_LIMIT_MS = float('inf')
+
 def point(t,x=0,z=0,speed=50):return [t,x,z,speed,.5,.1,0,2,4000,False]
 
 class Update029Tests(unittest.TestCase):

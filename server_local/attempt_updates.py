@@ -125,6 +125,9 @@ def validate_record(store,p,event,record,idx,previous=0):
     started=record.get('acrStarted')
     if type(started) not in (int,float) or not math.isfinite(started) or not p['created']-60<=started<=time.time()+60 or started<=previous:
         raise Fault(409,'Invalid attempt start time in the ACR file')
+    import timing_guard
+    if not timing_guard.check_official_start(store,p['id'],idx,started):
+        raise Fault(409,'Official result predates this stage attempt on the server')
     prov=store.db.execute('SELECT * FROM provisional WHERE player_id=? AND stage_index=?',(p['id'],idx)).fetchone()
     if not prov: raise Fault(409,'Stage has no telemetry finish')
     if abs(raw-prov['clock_ms'])>5000: raise Fault(409,'Official timer differs from telemetry by more than 5 seconds')
@@ -218,7 +221,7 @@ def checkpoint(store,token,data=None,*,recovery=False):
 
 
 def purge_event_rows(store,ident):
-    for table in ('telemetry_chunks','telemetry_runs','admin_time_penalties','web_sessions','launch_tickets','launch_leases','rally_recovery','rally_save_problems','rally_checkpoints','telemetry_penalties','provisional','results'):
+    for table in ('telemetry_chunks','telemetry_runs','admin_time_penalties','web_sessions','launch_tickets','launch_leases','rally_recovery','rally_save_problems','rally_checkpoints','telemetry_penalties','provisional','results','stage_starts','timing_flags'):
         store.db.execute('DELETE FROM '+table+' WHERE player_id IN (SELECT id FROM players WHERE event_id=?)',(ident,))
     store.db.execute('DELETE FROM players WHERE event_id=?',(ident,))
     store.db.execute('DELETE FROM season_events WHERE event_id=?',(ident,))

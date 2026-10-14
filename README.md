@@ -1,5 +1,7 @@
 # ACR Rally Club 0.2.16
 
+> **Project Simracing:** gałąź `projectsimracing` — wygląd projectsimracing.pl, wyniki na `wyniki.html`, czas polski i dodatkowe zabezpieczenia serwera. Instrukcja: [docs/PROJECTSIMRACING.md](docs/PROJECTSIMRACING.md).
+
 A web-based rally club for Assetto Corsa Rally, based on
 [ACR Daily](https://github.com/khanhonthetrack/acr-daily). Manage rallies,
 championships, divisions and teams in a browser. Players use a Windows launcher

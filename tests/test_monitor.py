@@ -35,6 +35,9 @@ from club_local import monitor
 from integrity_rules import expected_settings
 
 
+import timing_guard  # testy symulują OS natychmiast; zegar serwera sprawdza test_projectsimracing.py
+timing_guard.HARD_LIMIT_MS = timing_guard.REVIEW_LIMIT_MS = float('inf')
+
 class FakeSource:
     def __init__(self):
         self.next = None

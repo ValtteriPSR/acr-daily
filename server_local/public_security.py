@@ -15,6 +15,11 @@ PUBLIC_URL = os.environ.get('ACR_PUBLIC_BASE_URL', '').rstrip('/')
 GATEWAY_SECRET = os.environ.get('ACR_GATEWAY_SECRET', '')
 DOWNLOAD_URL = os.environ.get('ACR_LAUNCHER_DOWNLOAD_URL', '')
 MIN_LAUNCHER_VERSION = os.environ.get('ACR_MIN_LAUNCHER_VERSION','0.2.0')
+# Poprzednie adresy klubu (np. acr-rally-club.onrender.com) po przejściu na własną
+# domenę: przeglądarki są przekierowywane na ACR_PUBLIC_BASE_URL, a launchery
+# zbudowane dla starego adresu dalej mogą wywoływać /api/*.
+REDIRECT_HOSTS = {h.strip().lower().rstrip('.') for h in
+                  os.environ.get('ACR_REDIRECT_HOSTS', '').split(',') if h.strip()}
 
 
 def launcher_release_page(url):
@@ -54,7 +59,20 @@ def gateway_ok(headers):
 def check_host(headers):
     if not PUBLIC_URL:
         return True
-    return str(headers.get('Host','')).lower().rstrip('.') == urlsplit(PUBLIC_URL).netloc.lower()
+    host = str(headers.get('Host','')).lower().rstrip('.')
+    return host == urlsplit(PUBLIC_URL).netloc.lower() or host in REDIRECT_HOSTS
+
+
+def legacy_host(headers):
+    """Stara nazwa, pod którą przyszło żądanie (Caddy na Renderze podmienia Host,
+    oryginał zostaje w X-Forwarded-Host). Tylko nazwy z ACR_REDIRECT_HOSTS."""
+    if not PUBLIC_URL or not REDIRECT_HOSTS:
+        return None
+    for value in (headers.get('X-Forwarded-Host', ''), headers.get('Host', '')):
+        host = str(value).split(',')[0].strip().lower().rstrip('.')
+        if host in REDIRECT_HOSTS:
+            return host
+    return None
 
 
 def browser_origin(origin, headers):
