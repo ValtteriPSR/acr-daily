@@ -74,11 +74,13 @@ class RegistrationAndAdminRegressions(unittest.TestCase):
         self.assertEqual(first,admin_path(key))
         self.assertIn('server_local/admin_route.txt', (Path(__file__).resolve().parents[1]/'.gitignore').read_text().replace('**/admin_route.txt','server_local/admin_route.txt'))
         self.assertNotIn('href="/admin"',site(self.s))
-    def test_fixed_utc_plus_2(self):
+    def test_polish_local_time(self):
+        # Projekt PS: zamiast stałego UTC+2 czas polski (lato/zima), w bazie dalej UTC.
         ev=fixture(open_delta=timedelta(0),close_delta=timedelta(days=3))
-        self.assertIn('UTC+2',site(self.s,self.event['id']))
-        panel=(Path(__file__).resolve().parents[1]/'server_local/admin_panel.py').read_text()
-        self.assertIn("+':00+02:00'",panel)
-        self.assertIn('UTC+2',panel)
+        self.assertNotIn('UTC+2',site(self.s,self.event['id']))
+        from admin_panel import html as admin_html
+        panel=admin_html()
+        self.assertIn('const toUtc = plToUtc;',panel)
+        self.assertNotIn("+':00+02:00'",panel)
 
 if __name__ == '__main__':unittest.main()

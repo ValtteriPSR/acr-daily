@@ -90,5 +90,5 @@ class RecoveryTests(unittest.TestCase):
         self.s.integrity_violation(self.token,'<script>bad</script>')
         html=site(self.s,self.ev['id'])
         self.assertIn('PRZYWRÓĆ PRZEZ RUN',html);self.assertIn('rally-recovery-warning',html)
-        self.assertIn('#ffd166',html);self.assertNotIn('<script>bad</script>',html)
+        self.assertIn('class="recovery-warning"',html);self.assertIn('--amber:',html);self.assertNotIn('<script>bad</script>',html)
         self.assertEqual(self.s.board(self.ev['id'])['players'][0]['status'],'registered')

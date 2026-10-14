@@ -4,10 +4,9 @@ from html import escape as e
 from datetime import datetime, timezone, timedelta
 
 def _date_plus_two(timestamp):
-    try:
-        return datetime.fromisoformat(timestamp.replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=2))).strftime("%Y-%m-%d")
-    except (TypeError, ValueError):
-        return str(timestamp)[:10]
+    # Nazwa zostawiona dla zgodności; data w czasie polskim (lato/zima).
+    from local_time import label
+    return label(timestamp, '%d.%m.%Y')
 
 from server import format_ms
 from site_theme import shell, FILTER_JS

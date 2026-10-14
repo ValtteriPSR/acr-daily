@@ -14,7 +14,9 @@ import club_settings
 import attempt_updates
 import admin_penalties
 import telemetry_audit
+import timing_guard
 import sys
+import unicodedata
 # When launched with python server_local/server.py, ensure helper modules importing
 # `server.Fault` see the same class as the running __main__ HTTP handler.
 # Otherwise expected 4xx validation errors could be misreported as HTTP 500.
@@ -51,14 +53,17 @@ from seasons import (install as install_seasons,
 import steam_auth
 import discord_notifications
 from season_panel import html as season_admin_html
+import public_security
 from public_security import (PUBLIC_URL, DOWNLOAD_URL, check_config, gateway_ok,
                              check_host, browser_origin, remote_addr, RateLimiter, version_allowed,
                              launcher_release_page)
 
 ROOT = Path(__file__).resolve().parent.parent
 DB_DEFAULT = Path(os.environ.get('ACR_DB_PATH', str(ROOT / 'server_local' / 'club.sqlite3')))
+STATIC_DIR = Path(__file__).resolve().parent / 'static' / 'ps'
 MAX_BODY = 64 * 1024
 INACTIVE_SECONDS = 120
+NICK_PATTERN = r'[0-9A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u017F _\-]+'
 STATES = {'registered', 'active', 'ready', 'awaiting_results', 'completed', 'dnf'}
 
 
@@ -116,8 +121,10 @@ class Fault(Exception):
 def nick_key(nick):
     if not isinstance(nick, str) or not 2 <= len(nick.strip()) <= 24:
         raise Fault(400, tr('Nickname: 2–24 characters'))
-    nick = nick.strip()
-    if not re.fullmatch(r'[\w\- ]+', nick, re.UNICODE):
+    # NFKC + tylko litery łacińskie (z polskimi i innymi europejskimi znakami):
+    # blokuje podszywanie się nickiem z cyrylicą/greką wyglądającym jak cudzy.
+    nick = unicodedata.normalize('NFKC', nick).strip()
+    if not 2 <= len(nick) <= 24 or not re.fullmatch(NICK_PATTERN, nick):
         raise Fault(400, tr('Nicknames may contain letters, digits, spaces, _ and -'))
     return nick, nick.casefold()
 
@@ -161,6 +168,7 @@ class Store:
         attempt_updates.install(self)
         admin_penalties.install(self)
         telemetry_audit.install(self)
+        timing_guard.install(self)
         install_tables(self)
         install_seasons(self)
         discord_notifications.install(self)
@@ -399,6 +407,7 @@ class Store:
                     raise Fault(409, reason)
                 self.db.execute('''UPDATE players SET status='active',car_id=?,
                     last_seen=?,started=? WHERE id=?''', (car_id, now, now, p['id']))
+                timing_guard.record_start(self, p['id'], stage_index, now)
                 self.db.execute('DELETE FROM launch_leases WHERE player_id=?', (p['id'],))
                 self.db.execute('COMMIT')
                 return {'ok': True, 'stageIndex': stage_index, 'status': 'active'}
@@ -454,6 +463,12 @@ class Store:
                     raise Fault(400, tr('Invalid stage timer'))
                 attempt_updates.observe_penalty(self,p,index,penalty_ms)
                 now = time.time()
+                late = timing_guard.check_finish(self, p['id'], index, clock_ms, now)
+                if late:
+                    self.db.execute("UPDATE players SET status='dnf',terminal_reason=?,started=NULL WHERE id=?",
+                                    (late[:300], p['id']))
+                    self.db.execute('COMMIT')
+                    raise Fault(409, late)
                 self.db.execute('''INSERT INTO provisional(player_id,stage_index,clock_ms,finished)
                   VALUES(?,?,?,?)''', (p['id'], index, clock_ms, now))
                 next_index = index + 1
@@ -505,6 +520,8 @@ class Store:
                     if type(acr_started) not in (float,int) or not math.isfinite(acr_started) or \
                             not p['created'] - 60 <= acr_started <= now + 60 or \
                             acr_started <= prev_started:
+                        raise Fault(409, tr('Invalid attempt start time in the ACR file'))
+                    if not timing_guard.check_official_start(self, p['id'], idx, acr_started):
                         raise Fault(409, tr('Invalid attempt start time in the ACR file'))
                     # Coarse sanity bound between telemetry and official timers; exceptions
                     # can occur with timing glitches and need manual review rather than fake score.
@@ -564,8 +581,12 @@ class Store:
                 p['admin_penalty_ms']=sum(r['admin_penalty_ms'] for r in rows)
                 p['total']+=p['admin_penalty_ms']
                 p['pending_stages']=sum(not r['verified'] for r in rows)
+            # Meta wg czasu; w trakcie wg liczby przejechanych OS-ów i czasu
+            # (z telemetrią); potem zapisani bez startu; DNF na końcu.
+            group={'completed':0,'active':1,'ready':1,'awaiting_results':1,'registered':2,'dnf':3}
             return {'event': event, 'players': [dict(p) for p in sorted(players,
-                    key=lambda p:(p['status'] != 'completed', -p['completed_stages'], p['total'], p['nickname'].lower()))],
+                    key=lambda p:(group.get(p['status'],2), -p['completed_stages'], -p['stage_index'],
+                                  p['total'] if p['status']=='completed' else p['live_total'], p['nickname'].lower()))],
                     'stageResults':stage_results}
 
 
@@ -587,16 +608,15 @@ button.run{padding:13px 23px;border:0;border-radius:10px;background:#13b887;colo
 def site(store, identifier=None, browser=None, csrf=None, member=None):
     """Modern public pages. All data, CSRF forms and route targets retain V5 behavior."""
     from site_theme import shell
-    from rally_details import stage_schedule, rally_conditions
+    from rally_details import stage_schedule, rally_conditions, car_label, stage_label, location_label
+    from local_time import label as warsaw_label
 
     def pill(text, cls=''):
         return '<span class="chip '+cls+'">'+escape(text)+'</span>'
 
     def date_label(value):
-        try:
-            return datetime.fromisoformat(value.replace('Z','+00:00')).astimezone(timezone(timedelta(hours=2))).strftime('%d.%m.%Y · %H:%M UTC+2')
-        except (ValueError,TypeError):
-            return str(value)[:24]
+        # Czas polski (lato UTC+2, zima UTC+1); w bazie zostaje UTC.
+        return warsaw_label(value)
 
     now=time.time()
     if not identifier:
@@ -618,7 +638,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
             opening,closing=utc_epoch(ev['opensAt']),utc_epoch(ev['closesAt'])
             label,cl=(tr('LIVE'),'chip-active') if opening<=now<=closing else ((tr('COMING SOON'),'chip-upcoming') if now<opening else (tr('FINISHED'),'chip-ended'))
             card=('<article class="rally-card"><div class="hero-inline">'+pill(label,cl)+
-                      '<span class="muted">'+escape(ev['location'])+'</span></div>'
+                      '<span class="muted">'+escape(location_label(ev['location']))+'</span></div>'
                       '<h2><a href="/rally/'+eid+'">'+escape(ev['name'])+'</a></h2>'
                       '<p>'+str(len(ev['stages']))+tr(' special stages · ')+escape(ev['carClass'])+'</p>'
                       '<div class="rally-foot"><small>'+escape(date_label(ev['opensAt']))+'</small>'
@@ -634,8 +654,8 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     ev=data['event'];eid=escape(ev['id'],quote=True)
     total_stages=len(ev['stages'])
     finished=sum(p['status']=='completed' for p in data['players'])
-    content=(tr('<div><a class="backlink" href="/">← All rallies</a></div><section class="hero"><span class="eyebrow">Rally Weekend / ')+escape(ev['location'])+'</span>'
-             '<h1>'+escape(ev['name'])+'</h1><p>'+escape(ev['carClass'])+' · '+str(total_stages)+tr(' special stages</p><div class="stats"><div class="stat"><strong>')+str(total_stages)+tr('</strong><span>stages</span></div><div class="stat"><strong>')+str(len(data['players']))+tr('</strong><span>Participants</span></div><div class="stat"><strong>')+str(finished)+tr('</strong><span>Finished</span></div></div></section><div class="split"><section class="card"><span class="section-kicker">Round information</span><h2>Schedule</h2><p class="rally-meta"><strong>Opens:</strong> ')+escape(date_label(ev['opensAt']))+tr('</p><p class="rally-meta"><strong>Closes:</strong> ')+escape(date_label(ev['closesAt']))+tr('</p><p class="rally-meta"><strong>Location:</strong> ')+escape(ev['location'])+tr('</p><p class="rally-meta"><strong>Car class:</strong> ')+escape(ev['carClass'])+'</p>'+stage_schedule(ev)+'</section><div class="rally-side">')
+    content=(tr('<div><a class="backlink" href="/">← All rallies</a></div><section class="hero"><span class="eyebrow">Rally Weekend / ')+escape(location_label(ev['location']))+'</span>'
+             '<h1>'+escape(ev['name'])+'</h1><p>'+escape(ev['carClass'])+' · '+str(total_stages)+tr(' special stages</p><div class="stats"><div class="stat"><strong>')+str(total_stages)+tr('</strong><span>stages</span></div><div class="stat"><strong>')+str(len(data['players']))+tr('</strong><span>Participants</span></div><div class="stat"><strong>')+str(finished)+tr('</strong><span>Finished</span></div></div></section><div class="split"><section class="card"><span class="section-kicker">Round information</span><h2>Schedule</h2><p class="rally-meta"><strong>Opens:</strong> ')+escape(date_label(ev['opensAt']))+tr('</p><p class="rally-meta"><strong>Closes:</strong> ')+escape(date_label(ev['closesAt']))+tr('</p><p class="rally-meta"><strong>Location:</strong> ')+escape(location_label(ev['location']))+tr('</p><p class="rally-meta"><strong>Car class:</strong> ')+escape(ev['carClass'])+'</p>'+stage_schedule(ev)+'</section><div class="rally-side">')
     content+='<div id="rally-recovery-warning">'
     warned=[p for p in data['players'] if p.get('recoveryRequired')]
     if warned:
@@ -692,7 +712,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
         if p.get('pending_stages'): result+=' · '+tr('Provisional')
         admin_note=('<small class="admin-penalty-note">'+escape(tr('Admin penalty'))+' +'+format_ms(p['admin_penalty_ms'])+'</small>') if p.get('admin_penalty_ms') else ''
         content+=('<tr data-driver="'+escape(p['nickname'],quote=True)+'"><td class="rank-col">'+str(i)+'</td><td><strong>'+escape(p['nickname'])+'</strong></td>'
-                  '<td>'+escape(p['car_id'] or '—')+'</td><td>'+str(p['stage_index'])+'/'+str(total_stages)+'</td>'
+                  '<td class="car-name">'+escape(car_label(p['car_id']))+'</td><td>'+str(p['stage_index'])+'/'+str(total_stages)+'</td>'
                   '<td class="mono"><strong>'+escape(result)+'</strong>'+admin_note+'</td><td>'+pill(status_text,status_css)+'</td></tr>')
     content+='</tbody></table></div>'
     if not data['players']:content+=tr('<div class="empty">No drivers have registered yet.</div>')
@@ -700,7 +720,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
     content+=tr('<section class="card"><span class="section-kicker">Detailed results</span><h2>Individual stage results</h2>').replace('<section class="card">','<section class="card" id="rally-stage-results">',1)
     for index,stage in enumerate(ev['stages']):
         stage_rows=[r for r in data['stageResults'] if r['stage_index']==index]
-        content+='<details class="round"'+''+tr('><summary><span>SS ')+str(index+1)+' · '+escape(stage['stageId'])+'</span>'+pill(str(len(stage_rows))+tr(' results'))+'</summary>'
+        content+='<details class="round"'+''+tr('><summary><span>SS ')+str(index+1)+' · '+escape(stage_label(stage['stageId']))+'</span>'+pill(str(len(stage_rows))+tr(' results'))+'</summary>'
         content+=tr('<div class="table-scroll"><table><thead><tr><th>#</th><th>Driver</th><th>RAW</th><th>Penalties</th><th>Official time</th></tr></thead><tbody>')
         for place,r in enumerate(stage_rows,1):
             penalty_css='bad' if (r['penalty_ms'] is not None and r['penalty_ms']>0) or r.get('admin_penalty_ms',0)>0 else 'good' if r['penalty_ms']==0 else 'muted'
@@ -822,6 +842,24 @@ def make_handler(store, admin=None, catalog_root=None):
                         self.send_header(header, item)
             self.end_headers()
             self.wfile.write(payload)
+
+        def _static(self, name):
+            """Czcionki i logo Project Simracing z server_local/static/ps (tylko znane pliki)."""
+            if not re.fullmatch(r'[a-z0-9-]{1,60}\.(woff2|webp|png)', name):
+                raise Fault(404, tr('Not found'))
+            file = STATIC_DIR / name
+            if not file.is_file():
+                raise Fault(404, tr('Not found'))
+            raw = file.read_bytes()
+            mime = {'woff2':'font/woff2','webp':'image/webp','png':'image/png'}[name.rsplit('.',1)[1]]
+            self.send_response(200)
+            self.send_header('Content-Type', mime)
+            self.send_header('Content-Length', str(len(raw)))
+            self.send_header('Cache-Control', 'public, max-age=604800')
+            self.send_header('X-Content-Type-Options', 'nosniff')
+            self.send_header('Content-Security-Policy', "default-src 'none'")
+            self.end_headers()
+            self.wfile.write(raw)
 
         def _gateway_guard(self):
             if not gateway_ok(self.headers) or not check_host(self.headers):
@@ -977,6 +1015,11 @@ def make_handler(store, admin=None, catalog_root=None):
             try:
                 self._gateway_guard()
                 path = unquote(urlparse(self.path).path)
+                if public_security.legacy_host(self.headers) and path != '/healthz' and \
+                        not path.startswith(('/api/', '/static/')):
+                    # Stary adres klubu: przeglądarka idzie na nową domenę (tę samą ścieżkę).
+                    return self._write(301, '', 'text/plain; charset=utf-8',
+                                       {'Location': PUBLIC_URL + '/' + self.path.lstrip('/')})
                 if path == '/auth/steam':
                     self._limit('steam-sign-in', 20)
                     location, state = steam_auth.start(store, self._steam_origin())
@@ -1009,7 +1052,7 @@ def make_handler(store, admin=None, catalog_root=None):
                 if path == secret_admin_path + '/seasons':
                     self._require_admin_local()
                     return self._write(200, private_admin_page(season_admin_html(), secret_admin_path), 'text/html; charset=utf-8',
-                        {'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; form-action 'self'; base-uri 'none'"})
+                        {'Content-Security-Policy':"default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; font-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'"})
                 if path == '/api/admin/discord':
                     self._require_admin()
                     return self._write(200, discord_notifications.status(store))
@@ -1022,6 +1065,8 @@ def make_handler(store, admin=None, catalog_root=None):
                 if path.startswith('/api/admin/seasons/'):
                     self._require_admin()
                     return self._write(200, season_config(store,path.removeprefix('/api/admin/seasons/')))
+                if path.startswith('/static/ps/'):
+                    return self._static(path.removeprefix('/static/ps/'))
                 if path == '/healthz':
                     return self._write(200, {'status':'ok'})
                 if path == '/download':
@@ -1056,7 +1101,7 @@ def make_handler(store, admin=None, catalog_root=None):
                 if path == secret_admin_path:
                     self._require_admin_local()
                     return self._write(200, private_admin_page(admin_html(), secret_admin_path), 'text/html; charset=utf-8',
-                                       {'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'"})
+                                       {'Content-Security-Policy': "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; connect-src 'self'; font-src 'self'; img-src 'self'; form-action 'self'; base-uri 'none'"})
                 if path == '/club-logo':
                     logo=club_settings.public(store)['logo']
                     if not logo: raise Fault(404,'Logo not set')
@@ -1120,6 +1165,17 @@ def make_handler(store, admin=None, catalog_root=None):
                     return self._write(200, site(store, event_id, actor, csrf, member), 'text/html; charset=utf-8',
                                        {'Set-Cookie':make_cookie('acrclub_csrf',csrf,
                                            secure=self._secure_cookie())})
+                if path in ('/api/ps/wyniki', '/api/ps/kalendarz'):
+                    # Odczyt dla projectsimracing.pl (wyniki.html, kalendarz przy budowaniu).
+                    import ps_export
+                    query = parse_qs(urlparse(self.path).query)
+                    cors = ps_export.cors_headers(self.headers.get('Origin'))
+                    if path == '/api/ps/kalendarz':
+                        return self._write(200, ps_export.events(store), extra_headers=cors)
+                    data = ps_export.sheets(store, query.get('season', [''])[0] or None)
+                    if query.get('meta'):
+                        data = {'title': data['title'], 'updated': data['updated']}
+                    return self._write(200, data, extra_headers=cors)
                 if path == '/api/events':
                     return self._write(200, {'events': store.listing()})
                 if path.startswith('/api/events/'):
@@ -1136,6 +1192,13 @@ def make_handler(store, admin=None, catalog_root=None):
                     from site_theme import shell
                     page = shell(tr('Steam sign-in'), '<section class="card"><h1>'+tr('Steam sign-in')+'</h1><p>'+escape(str(exc))+'</p><p><a class="btn-link" href="/auth/steam">'+tr('Try Steam sign-in again')+'</a></p></section>',active='club')
                     return self._write(exc.code,page,'text/html; charset=utf-8')
+                if exc.code == 404 and not self.path.startswith(('/api/', '/static/')) and \
+                        'text/html' in self.headers.get('Accept', ''):
+                    from site_theme import shell
+                    page = shell(tr('Not found'), '<section class="hero"><span class="eyebrow">404</span><h1>'
+                                 + escape(tr('Not found')) + '</h1><p><a class="btn-link" href="/">'
+                                 + escape(tr('Rallies')) + ' →</a></p></section>', active='')
+                    return self._write(404, page, 'text/html; charset=utf-8')
                 self._write(exc.code, {'error': str(exc)})
             except Exception:
                 self._write(500, {'error': tr('Server error')})

@@ -137,6 +137,9 @@ def summaries(store,event_id):
             if sum(r['point_count'] is not None for r in group)<expected:
                 levels.append(1);notes.append(tr('Some driven stages have no retained samples'))
             if group[0]['status']=='dnf':levels.append(2);notes.append(tr('DNF; inspect the recorded stage and reason'))
+            import timing_guard
+            timing=timing_guard.flags(store,pid)
+            if timing:levels.append(1);notes.extend(timing)
             level=max(levels);css=['trace-good','trace-warn','trace-bad'][level]
             title=[tr('No detected signals'),tr('Review / incomplete data'),tr('Significant signal / DNF')][level]
             out+='<details class="round trace-driver" data-src="/api/telemetry/'+escape(event_id,quote=True)+'/driver/'+str(pid)+'"><summary><span>'+escape(group[0]['nickname'])+' · <span class="'+css+'">'+escape(title)+'</span></span><span>'+str(count)+' '+escape(tr('samples'))+'</span></summary><p class="small '+css+'">'+escape('; '.join(dict.fromkeys(notes)))+'</p><div class="trace-content"></div></details>'

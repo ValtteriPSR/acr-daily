@@ -30,8 +30,14 @@ def main():
         try:
             with sync_playwright() as p:
                 browser=p.chromium.launch()
-                page=browser.new_page(viewport={'width':1280,'height':900})
+                page=browser.new_page(viewport={'width':1280,'height':900},color_scheme='dark')
                 page.on('pageerror',lambda e:errors.append(str(e)))
+                page.goto(origin+'/')
+                page.locator('#themeBtn').click()
+                assert page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(239, 233, 222)'")
+                page.reload()
+                assert page.locator('html').get_attribute('data-theme')=='light'
+                page.locator('#themeBtn').click()
                 page.goto(origin+admin_path(auth.key_path))
                 page.locator('#adminKey').fill(auth._secret);page.locator('#loginBtn').click();page.locator('#workspace').wait_for(state='visible')
                 page.locator('#brandTitle').fill('Custom Rally Club')
@@ -40,7 +46,7 @@ def main():
                 page.locator('#brandDiscord').fill('https://discord.gg/club42')
                 with page.expect_navigation():page.locator('#saveBrand').click()
                 page.locator('#workspace').wait_for(state='visible')
-                assert 'Custom Rally Club' in page.locator('.brand').inner_text()
+                assert 'Custom Rally Club' in page.locator('.brand').text_content()
                 page.locator('#newEvent').click();page.locator('#allowBreaks').wait_for(state='visible')
                 assert page.locator('#allowBreaks option').count()==2
                 for lang in ('pl','en'):
@@ -52,8 +58,15 @@ def main():
                             if not page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'):
                                 print('Overflow nodes:',page.evaluate("[...document.querySelectorAll('main *, .sitebar *')].filter(e=>{const r=e.getBoundingClientRect();return r.right>innerWidth+1 && getComputedStyle(e).position!=='absolute'}).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width,text:e.textContent.slice(0,70)})).slice(0,15)"))
                                 raise AssertionError((lang,width,path,'page overflow'))
-                            assert page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(20, 29, 48)'"),(lang,width,path,'background')
-                            assert page.locator('.discord-invite').get_attribute('href')=='https://discord.gg/club42'
+                            assert page.evaluate("getComputedStyle(document.body).backgroundColor==='rgb(13, 19, 32)'"),(lang,width,path,'background')
+                            if not path.startswith(admin_path(auth.key_path)):
+                                assert page.locator('.discord-invite').get_attribute('href')=='https://discord.gg/club42'
+                                if width==390 and path=='/':
+                                    page.locator('#burger').click()
+                                    assert page.locator('#mobnav').is_visible()
+                                    assert page.locator('#burger').get_attribute('aria-expanded')=='true'
+                                    page.locator('#burger').click()
+                                    assert not page.locator('#mobnav').is_visible()
                             if path=='/launcher':
                                 text=page.locator('main').inner_text()
                                 assert 'Python' not in text and '.bat' not in text and 'Automatyczna nawigacja' not in text
@@ -63,7 +76,7 @@ def main():
                             if path=='/guide':
                                 assert page.locator('#save-safety-guide').count()==1
                                 assert '0.2.16' in page.locator('#save-safety-guide').inner_text()
-                                assert page.locator(".site-nav a[href='/guide']").evaluate('(element) => getComputedStyle(element).color') in ['rgb(255, 173, 85)', 'rgb(255, 209, 157)']
+                                assert page.locator(".site-nav a[href='/guide']").evaluate('(element) => getComputedStyle(element).color')=='rgb(237, 71, 3)'
                             if path.startswith('/rally/'):
                                 assert page.locator('#rally-stage-results details[open]').count()==0
                         page.goto(origin+'/');assert page.locator('a[href$="/ACR-Rally-Club-Setup.exe"]').first.get_attribute('href').startswith('https://github.com/')

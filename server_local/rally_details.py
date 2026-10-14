@@ -63,3 +63,30 @@ def rally_conditions(event):
             + escape(tr('Conditions')) + '</h2><dl class="conditions-grid">'
             + ''.join('<div><dt>' + escape(tr(label)) + '</dt><dd>' + escape(value) + '</dd></div>'
                       for label, value in fields) + '</dl></section>')
+
+
+# ---- Czytelne nazwy zamiast identyfikatorów gry (strony publiczne) ----
+LOCATION_LABELS = {'Greece': 'Greece', 'Alsace': 'Alsace', 'Wales': 'Wales', 'MonteCarlo': 'Monte Carlo'}
+
+
+def _catalog():
+    from club_settings import branding
+    try:
+        return branding().get('catalog') or load_catalog()
+    except (ValueError, OSError):
+        return {'cars': [], 'stages': []}
+
+
+def car_label(car_id):
+    """'HyundaiI20NRally2' -> 'Hyundai i20 N Rally2' (gdy auto jest w katalogu)."""
+    if not car_id:
+        return '—'
+    return next((c['name'] for c in _catalog().get('cars', []) if c.get('id') == car_id), car_id)
+
+
+def stage_label(stage_id):
+    return next((s['name'] for s in _catalog().get('stages', []) if s.get('id') == stage_id), stage_id)
+
+
+def location_label(location):
+    return tr(LOCATION_LABELS.get(location, location))

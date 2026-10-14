@@ -71,6 +71,10 @@ def localize_document(page):
                      + '" hreflang="' + code + '" aria-label="' + label + '"'
                      + current + '>' + code.upper() + '</a>')
     switch = '<span class="language-switch" aria-label="Language / Język">' + ''.join(links) + '</span>'
+    # Motyw Project Simracing wskazuje miejsce przełącznika w pasku górnym
+    # i sam go stylizuje; starsze szablony dostają dawne wstrzyknięcie.
+    if '<!--acr-language-->' in page:
+        return page.replace('<!--acr-language-->', switch, 1)
     style = ('<style>.language-switch{display:inline-flex;gap:3px;align-items:center;'
              'white-space:nowrap;margin-left:8px}.language-switch a{padding:7px 9px;'
              'border:1px solid #535d6e;border-radius:0;color:#eef3fa;font:700 12px system-ui;'

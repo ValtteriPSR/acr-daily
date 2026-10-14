@@ -286,4 +286,5 @@ refresh();
 def html():
     from admin_customization import enhance
     from admin_penalties import enhance as penalty_tools
-    return admin_shell(penalty_tools(enhance(tr(PAGE))))
+    from local_time import polish_admin_time
+    return admin_shell(polish_admin_time(penalty_tools(enhance(tr(PAGE)))))

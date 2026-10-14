@@ -7,6 +7,9 @@ from server import Store, Fault
 from integrity_rules import expected_settings, compare
 from test_server import event
 
+import timing_guard  # testy symulują OS natychmiast; zegar serwera sprawdza test_projectsimracing.py
+timing_guard.HARD_LIMIT_MS = timing_guard.REVIEW_LIMIT_MS = float('inf')
+
 class IntegrityTests(unittest.TestCase):
     def setUp(self):
         self.tmp=tempfile.TemporaryDirectory()
