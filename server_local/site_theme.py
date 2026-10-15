@@ -224,6 +224,10 @@ td.mono strong{font-weight:500}
 .conditions-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);margin:16px 0 0}
 .conditions-grid>div{background:var(--bg);padding:10px 12px}
 .conditions-grid>div:last-child:nth-child(odd){grid-column:1/-1}
+.season-rules{font-size:12px;line-height:1.6;color:var(--muted);margin-top:16px;padding-top:12px;border-top:1px solid var(--line);overflow-wrap:anywhere}
+.season-rules p{margin:5px 0}
+.season-rules strong{font-weight:600;color:var(--text)}
+.season-id{font-size:12px;overflow-wrap:anywhere;user-select:all}
 .conditions-grid dt{font-family:var(--f-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim)}
 .conditions-grid dd{margin:3px 0 0;font-weight:600;font-size:14px;color:var(--text)}
 

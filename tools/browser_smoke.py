@@ -9,11 +9,13 @@ from http.server import ThreadingHTTPServer
 from datetime import datetime,timezone,timedelta
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'server_local'),str(ROOT/'tests')]
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 from server import Store,make_handler
 from admin_panel import AdminAuth
 from admin_access import admin_path
 from test_server import event
+from test_seasons import new_event, new_season
+from seasons import save_season, set_rallies, set_rally_points, add_group
 from integrity_rules import expected_settings
 import club_settings
 import telemetry_audit
@@ -22,6 +24,10 @@ import telemetry_audit
 def main():
     with tempfile.TemporaryDirectory() as directory:
         store=Store(Path(directory)/'club.db');ev=event();store.import_event(ev)
+        season_event=new_event('season-summary-browser');store.import_event(season_event)
+        season_id=save_season(store,new_season())['id'];set_rallies(store,season_id,[season_event['id']])
+        set_rally_points(store,season_id,season_event['id'],[50,35,20],[12,8],[3,1])
+        add_group(store,season_id,'division','Division One');add_group(store,season_id,'team','Club Team')
         driver=store.join(ev['id'],'Browser Driver')['token']
         auth=AdminAuth(Path(directory)/'admin-key.txt')
         server=ThreadingHTTPServer(('127.0.0.1',0),make_handler(store,auth));thread=threading.Thread(target=server.serve_forever,daemon=True);thread.start()
@@ -53,7 +59,7 @@ def main():
                     page.context.add_cookies([{'name':'acrclub_language','value':lang,'url':origin}])
                     for width in (390,1280):
                         page.set_viewport_size({'width':width,'height':900})
-                        for path in ('/', '/guide','/launcher','/seasons', '/rally/'+ev['id'],admin_path(auth.key_path),admin_path(auth.key_path)+'/seasons'):
+                        for path in ('/', '/guide','/launcher','/seasons', '/rally/'+ev['id'],'/rally/'+season_event['id'],admin_path(auth.key_path),admin_path(auth.key_path)+'/seasons'):
                             page.goto(origin+path)
                             if not page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'):
                                 print('Overflow nodes:',page.evaluate("[...document.querySelectorAll('main *, .sitebar *')].filter(e=>{const r=e.getBoundingClientRect();return r.right>innerWidth+1 && getComputedStyle(e).position!=='absolute'}).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width,text:e.textContent.slice(0,70)})).slice(0,15)"))
@@ -77,9 +83,23 @@ def main():
                                 assert page.locator('#save-safety-guide').count()==1
                                 assert '0.2.16' in page.locator('#save-safety-guide').inner_text()
                                 assert page.locator(".site-nav a[href='/guide']").evaluate('(element) => getComputedStyle(element).color')=='rgb(237, 71, 3)'
+                            if path=='/rally/'+season_event['id']:
+                                rules=page.locator('.rally-conditions .season-rules')
+                                assert rules.is_visible()
+                                assert '50, 35, 20' in rules.inner_text()
+                                assert '12, 8' in rules.inner_text() and '3, 1' in rules.inner_text()
+                                assert 'Division One' in rules.inner_text()
+                                assert rules.evaluate('(e)=>parseFloat(getComputedStyle(e).fontSize)')==12
                             if path.startswith('/rally/'):
                                 assert page.locator('#rally-stage-results details[open]').count()==0
                         page.goto(origin+'/');assert page.locator('a[href$="/ACR-Rally-Club-Setup.exe"]').first.get_attribute('href').startswith('https://github.com/')
+                page.goto(origin+admin_path(auth.key_path)+'/seasons')
+                page.locator('#workspace').wait_for(state='visible')
+                assert page.locator('#seasonList .season-id').inner_text()==season_id
+                page.locator('button[data-open="'+season_id+'"]').click()
+                expect(page.locator('#seasonId')).to_have_text(season_id)
+                page.locator('#newSeason').click()
+                assert not page.locator('#seasonIdentifier').is_visible()
                 page.set_viewport_size({'width':1280,'height':900});page.goto(origin+'/rally/'+ev['id'])
                 page.locator('#rally-stage-results summary').first.click()
                 page.locator('#driver-search').fill('Browser')
