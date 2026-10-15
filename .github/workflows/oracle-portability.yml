@@ -20,6 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate bootstrap configuration
         run: |
+          bash -n deploy/oracle/prepare-oracle-linux.sh deploy/oracle/backup-once.sh
           python -m pip install PyYAML
           python - <<'PY'
           from pathlib import Path

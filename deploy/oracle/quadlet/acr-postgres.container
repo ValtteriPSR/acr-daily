@@ -1,0 +1,18 @@
+[Unit]
+Description=ACR private PostgreSQL database
+Wants=network-online.target
+After=network-online.target
+[Container]
+Image=docker.io/library/postgres:18
+ContainerName=acr-postgres
+EnvironmentFile=/opt/acr/postgres.env
+Network=acr-network.network
+NetworkAlias=database
+Volume=/opt/acr/postgres:/var/lib/postgresql:Z
+Exec=postgres -c shared_buffers=128MB -c max_connections=40 -c work_mem=4MB
+[Service]
+Restart=always
+RestartSec=3
+TimeoutStartSec=300
+[Install]
+WantedBy=multi-user.target
