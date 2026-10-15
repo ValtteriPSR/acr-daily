@@ -10,10 +10,15 @@ The first database/full upload and real restore must succeed before enabling
 timers. systemd Persistent=true catches up after downtime. Jobs serialize via
 flock, run at reduced CPU/I/O priority and do not restart the application.
 
-The private Object Storage bucket is `acr-migration-backups`:
+Two private Object Storage buckets separate expiring history from recovery anchors:
+
+History bucket: `acr-scheduled-backup-history`:
 
 - `scheduled/database/*`: unique immutable dump objects, expire after 2 days.
 - `scheduled/full/*`: unique immutable full archives, expire after 7 days.
+
+Protected bucket: `acr-migration-backups`:
+
 - `latest/database.dump`, `latest/full.tar.gz`: last verified copies, replaced
   only after an immutable remote upload passes SHA256 readback. Never expire.
 - Original migration snapshots: untouched by lifecycle and by this script.
@@ -27,12 +32,14 @@ hidden previous versions. No bucket-wide expiration rule is installed.
 The VM principal can create/read scheduled objects, but cannot overwrite/delete
 them. Only the two exact latest keys allow overwrite; ETag conditions protect
 against concurrent replacement. Deletion permission belongs to the regional
-Object Storage service and only covers scheduled database/full prefixes.
+Object Storage service only for the separate history bucket. It has no deletion
+permission in the bucket containing latest/migration copies. Lifecycle filters
+additionally restrict expiration to scheduled database/full prefixes.
 No account API signing key is installed on the VM. Backups contain credentials
 and must never be made public or attached to GitHub issues.
 
 Files: `/opt/acr/backup-scheduled.py`, root-only `backup-schedule.env` with
-ACR_BACKUP_NAMESPACE and ACR_BACKUP_BUCKET, and systemd template/timers in this
+ACR_BACKUP_NAMESPACE, ACR_BACKUP_BUCKET and ACR_BACKUP_HISTORY_BUCKET, and systemd template/timers in this
 folder installed under `/etc/systemd/system`. OCI Python SDK is a host dependency.
 
 ```sh

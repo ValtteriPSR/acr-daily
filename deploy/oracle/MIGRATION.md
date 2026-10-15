@@ -68,6 +68,11 @@ Do not use a CNAME record whose target is a literal IP address.
 
 ## Backups
 
+Scheduled backups are now enabled: database every six hours, full recovery
+archive daily, isolated restore test weekly. See [schedule and short retention](scheduled/README.md).
+Short history expires after 2/7 days; the last verified database/full copies
+remain available without expiration. The manual script below is independent.
+
 `backup-once.sh` is a root-only, manually invoked full database/configuration
 snapshot, not a scheduled job. Required host dependencies: Podman, Python and
 Oracle's `oci` Python SDK. It checks the custom dump's catalog before archiving,

@@ -57,9 +57,10 @@ def publish(client, ns, bucket, mode, data):
     suffix = 'dump' if mode == 'database' else 'tar.gz'
     stamp = dt.datetime.now(dt.timezone.utc).strftime('%Y%m%dT%H%M%SZ')
     history = f'scheduled/{mode}/{stamp}-{uuid.uuid4().hex}.{suffix}'
-    # Never change latest unless a separate immutable remote object was verified.
-    put(client, ns, bucket, history, data, if_none_match='*')
-    if download(client, ns, bucket, history) != data:
+    history_bucket = os.environ.get('ACR_BACKUP_HISTORY_BUCKET', 'acr-scheduled-backup-history')
+    # Lifecycle has deletion permission only in this separate history bucket.
+    put(client, ns, history_bucket, history, data, if_none_match='*')
+    if download(client, ns, history_bucket, history) != data:
         raise ValueError('Remote immutable backup differs')
     latest = f'latest/{mode}.{suffix}'
     try:
@@ -73,7 +74,7 @@ def publish(client, ns, bucket, mode, data):
     put(client, ns, bucket, latest, data, **condition)
     if download(client, ns, bucket, latest) != data:
         raise ValueError('Remote latest backup differs')
-    return {'object': history, 'latest': latest, 'sha256': digest(data),
+    return {'historyBucket': history_bucket, 'object': history, 'latest': latest, 'sha256': digest(data),
             'bytes': len(data), 'verifiedAt': dt.datetime.now(dt.timezone.utc).isoformat()}
 
 

@@ -42,6 +42,15 @@ class BackupTests(unittest.TestCase):
         store = Store(fail=True)
         with self.assertRaises(RuntimeError): backup.publish(store, 'ns', 'bucket', 'database', b'new dump')
         self.assertEqual(store.values['latest/database.dump'], b'old verified backup')
+    def test_history_and_latest_are_stored_in_separate_buckets(self):
+        store = Store(); calls = []
+        original = store.put_object
+        def put(ns, bucket, name, data, **kwargs):
+            calls.append((bucket, name)); original(ns, bucket, name, data, **kwargs)
+        store.put_object = put
+        with patch.dict(backup.os.environ, {'ACR_BACKUP_HISTORY_BUCKET': 'history-only'}):
+            backup.publish(store, 'ns', 'protected-latest', 'database', b'dump')
+        self.assertEqual([x[0] for x in calls], ['history-only', 'protected-latest'])
     def test_invalid_dump_is_rejected_without_postgres(self):
         with patch.object(backup, 'run') as run:
             with self.assertRaises(ValueError): backup.validate_dump(b'not a dump')
