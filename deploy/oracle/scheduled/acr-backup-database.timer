@@ -1,0 +1,12 @@
+[Unit]
+Description=ACR database backup schedule
+
+[Timer]
+OnCalendar=*-*-* 00,06,12,18:15:00 Europe/Warsaw
+Unit=acr-backup@database.service
+Persistent=true
+RandomizedDelaySec=120
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

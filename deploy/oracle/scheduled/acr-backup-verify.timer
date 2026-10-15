@@ -1,0 +1,12 @@
+[Unit]
+Description=ACR verify backup schedule
+
+[Timer]
+OnCalendar=Mon *-*-* 04:45:00 Europe/Warsaw
+Unit=acr-backup@verify.service
+Persistent=true
+RandomizedDelaySec=120
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target
