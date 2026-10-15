@@ -1,5 +1,6 @@
 """Compact public rally configuration, derived from the launcher's actual settings."""
 from html import escape
+import json
 
 from admin_panel import load_catalog
 from i18n import tr
@@ -43,7 +44,7 @@ def stage_schedule(event):
             + '</th></tr></thead><tbody>' + ''.join(rows) + '</tbody></table></div>')
 
 
-def rally_conditions(event):
+def rally_conditions(event, store=None):
     rules = {**DEFAULT_RULES, **(event.get('weekend') or {})}
     actual = expected_settings(event)
     level = lambda key: tr(LEVEL_LABELS[rules[key]])
@@ -62,7 +63,8 @@ def rally_conditions(event):
     return ('<section class="card rally-conditions"><span class="section-kicker">Rally Weekend</span><h2>'
             + escape(tr('Conditions')) + '</h2><dl class="conditions-grid">'
             + ''.join('<div><dt>' + escape(tr(label)) + '</dt><dd>' + escape(value) + '</dd></div>'
-                      for label, value in fields) + '</dl></section>')
+                      for label, value in fields) + '</dl>'
+            + (season_rules(store, event['id']) if store is not None else '') + '</section>')
 
 
 # ---- Czytelne nazwy zamiast identyfikatorów gry (strony publiczne) ----
@@ -90,3 +92,52 @@ def stage_label(stage_id):
 
 def location_label(location):
     return tr(LOCATION_LABELS.get(location, location))
+
+
+def season_rules(store, event_id):
+    """Public scoring metadata only; use round overrides exactly as scoring() does."""
+    with store.lock:
+        row = store.db.execute("""SELECT s.id,s.name,s.team_mode,
+            s.general_points AS season_general,s.division_points AS season_division,
+            s.power_points AS season_power,se.general_points AS rally_general,
+            se.division_points AS rally_division,se.power_points AS rally_power,
+            (SELECT COUNT(*) FROM season_teams t WHERE t.season_id=s.id) AS team_count
+            FROM season_events se JOIN seasons s ON s.id=se.season_id
+            WHERE se.event_id=?""", (event_id,)).fetchone()
+        if row is None:
+            return ''
+        divisions = [d['name'] for d in store.db.execute(
+            'SELECT name FROM season_divisions WHERE season_id=? ORDER BY sort_index', (row['id'],))]
+        # Empty Power Stage overrides disable the bonus; never fall back via truthiness.
+        points = {kind: json.loads(row['rally_' + kind] if row['rally_' + kind] is not None
+                                  else row['season_' + kind])
+                  for kind in ('general', 'division', 'power')}
+    def text(value):
+        return escape(tr(value))
+    def scale(values):
+        return ', '.join(str(value) for value in values)
+    from urllib.parse import quote
+    lines = [('<strong>' + text('Season') + ':</strong> <a href="/season/'
+              + quote(row['id'], safe='') + '">' + escape(row['name']) + '</a>'),
+             '<strong>' + text('Overall points') + ':</strong> '
+             + text('Positions from 1:') + ' ' + scale(points['general']) + '. '
+             + text('Other classified finishers: 1 point.')]
+    if divisions:
+        lines.append('<strong>' + text('Division points') + ':</strong> '
+                     + text('Positions from 1:') + ' ' + scale(points['division']) + '. '
+                     + text('Other classified finishers: 1 point.'))
+    power = (text('Final SS, among rally finishers:') + ' ' + scale(points['power']) + '. '
+             + text('Other places: 0 points.')) if any(points['power']) else text('Disabled')
+    lines += ['<strong>Power Stage:</strong> ' + power,
+              '<strong>' + text('Who scores') + ':</strong> '
+              + text('Season entrants with a club account who finish every SS. DNF: 0 points. Points are awarded after the rally closes.')]
+    mode = {'combined': 'Overall + division + Power Stage',
+            'general': 'Overall + Power Stage', 'division': 'Division points only'}[row['team_mode']]
+    team = text('Sum of points from all assigned team drivers:') + ' ' + text(mode) + '.'
+    if not row['team_count']:
+        team = text('No teams configured.') + ' ' + team
+    lines.append('<strong>' + text('Team scoring') + ':</strong> ' + team)
+    lines.append('<strong>' + text('Divisions') + ':</strong> '
+                 + (', '.join(escape(name) for name in divisions) if divisions else text('Not configured')))
+    return '<div class="season-rules" aria-label="' + text('Season scoring rules') + '">' + ''.join(
+        '<p>' + line + '</p>' for line in lines) + '</div>'

@@ -702,7 +702,7 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
                 content+=tr('<p class="muted">Entry confirmed. RUN RALLY will be available from ')+escape(date_label(ev['opensAt']))+'.</p>'
             else:
                 content+=tr('<p class="muted">RUN is locked — the attempt is in progress or has ended.</p>')
-    content+='</section>'+rally_conditions(ev)+'</div></div>'
+    content+='</section>'+rally_conditions(ev, store=store)+'</div></div>'
     content+=tr('<section class="card"><div class="card-head"><div><span class="section-kicker">Rally standings</span><h2>Overall results</h2></div>').replace('<section class="card">','<section class="card" id="rally-classification">',1)+pill(str(len(data['players']))+tr(' drivers'))+'</div>'
     content+=(tr('<div class="toolbar"><label for="driver-search">Search drivers</label><input type="search" id="driver-search" placeholder="Enter a driver nickname…" autocomplete="off"></div>'))
     content+=(tr('<div class="table-scroll"><table><thead><tr><th>Position</th><th>Driver</th><th>Car</th><th>SS</th><th>Total time</th><th>Status</th></tr></thead><tbody>'))
