@@ -1,0 +1,12 @@
+[Unit]
+Description=ACR full backup schedule
+
+[Timer]
+OnCalendar=*-*-* 03:15:00 Europe/Warsaw
+Unit=acr-backup@full.service
+Persistent=true
+RandomizedDelaySec=120
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

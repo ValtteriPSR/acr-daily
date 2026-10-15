@@ -1,0 +1,14 @@
+[Unit]
+Description=ACR verified backup (%i)
+Wants=network-online.target
+After=network-online.target acr-postgres.service
+
+[Service]
+Type=oneshot
+User=root
+UMask=0077
+EnvironmentFile=/opt/acr/backup-schedule.env
+ExecStart=/usr/bin/python3 /opt/acr/backup-scheduled.py %i
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=idle
