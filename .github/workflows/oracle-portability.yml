@@ -35,7 +35,8 @@ jobs:
       - name: Check native PostgreSQL and password dependencies
         run: docker run --rm acr-oracle-check python -c "import platform,psycopg,psycopg_pool,bcrypt; print(platform.machine()); assert bcrypt.checkpw(b'test',bcrypt.hashpw(b'test',bcrypt.gensalt()))"
       - name: Run server regression suite inside the native image
-        run: docker run --rm acr-oracle-check python -m unittest discover -s tests -q
+        # Packaging tests inspect workflow metadata excluded from runtime images.
+        run: docker run --rm --mount type=bind,source="$PWD/.github",target=/opt/acr/.github,readonly acr-oracle-check python -m unittest discover -s tests -q
       - name: Validate existing Compose configuration
         run: |
           docker run --rm --mount type=bind,source="$PWD/deploy",target=/configuration acr-oracle-check python deploy/configure_hosting.py --domain league.example.com --download-url https://github.com/example/club/releases/tag/test --output /configuration/.env > /tmp/acr-ci-access.txt
