@@ -1,0 +1,20 @@
+[Unit]
+Description=ACR Rally Club application (single production writer)
+Wants=network-online.target
+After=network-online.target
+
+[Container]
+Image=localhost/acr-rally-club:0.2.16
+ContainerName=acr-app
+EnvironmentFile=/opt/acr/production.env
+Network=acr-network.network
+NetworkAlias=app
+Volume=/opt/acr/data:/data:Z
+
+[Service]
+Restart=always
+RestartSec=3
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target
