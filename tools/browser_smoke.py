@@ -9,7 +9,7 @@ from http.server import ThreadingHTTPServer
 from datetime import datetime,timezone,timedelta
 ROOT=Path(__file__).resolve().parents[1]
 sys.path[:0]=[str(ROOT/'server_local'),str(ROOT/'tests')]
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 from server import Store,make_handler
 from admin_panel import AdminAuth
 from admin_access import admin_path
@@ -97,7 +97,7 @@ def main():
                 page.locator('#workspace').wait_for(state='visible')
                 assert page.locator('#seasonList .season-id').inner_text()==season_id
                 page.locator('button[data-open="'+season_id+'"]').click()
-                assert page.locator('#seasonId').inner_text()==season_id
+                expect(page.locator('#seasonId')).to_have_text(season_id)
                 page.locator('#newSeason').click()
                 assert not page.locator('#seasonIdentifier').is_visible()
                 page.set_viewport_size({'width':1280,'height':900});page.goto(origin+'/rally/'+ev['id'])
