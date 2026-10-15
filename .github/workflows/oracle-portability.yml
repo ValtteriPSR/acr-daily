@@ -1,0 +1,45 @@
+name: Oracle portability
+on:
+  push:
+    branches: ['migration/oracle-*']
+  pull_request:
+    paths:
+      - 'deploy/oracle/**'
+      - '.github/workflows/oracle-portability.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-container:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm]
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate bootstrap configuration
+        run: |
+          bash -n deploy/oracle/prepare-oracle-linux.sh deploy/oracle/backup-once.sh
+          python -m pip install PyYAML
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess, yaml
+          config=yaml.safe_load(Path('deploy/oracle/cloud-init.yaml').read_text())
+          script=config['write_files'][0]['content']
+          subprocess.run(['bash','-n'],input=script,text=True,check=True)
+          assert 'DATABASE_URL' not in str(config)
+          assert 'docker compose up' not in script
+          PY
+      - name: Build existing server on the native architecture
+        run: docker build -t acr-oracle-check -f deploy/Dockerfile .
+      - name: Check native PostgreSQL and password dependencies
+        run: docker run --rm acr-oracle-check python -c "import platform,psycopg,psycopg_pool,bcrypt; print(platform.machine()); assert bcrypt.checkpw(b'test',bcrypt.hashpw(b'test',bcrypt.gensalt()))"
+      - name: Run server regression suite inside the native image
+        # Packaging tests inspect workflow metadata excluded from runtime images.
+        run: docker run --rm --mount type=bind,source="$PWD/.github",target=/opt/acr/.github,readonly acr-oracle-check python -m unittest discover -s tests -q
+      - name: Validate existing Compose configuration
+        run: |
+          docker run --rm --mount type=bind,source="$PWD/deploy",target=/configuration acr-oracle-check python deploy/configure_hosting.py --domain league.example.com --download-url https://github.com/example/club/releases/tag/test --output /configuration/.env > /tmp/acr-ci-access.txt
+          sudo chown "$(id -u):$(id -g)" deploy/.env
+          docker compose --env-file deploy/.env -f deploy/compose.yaml config --quiet

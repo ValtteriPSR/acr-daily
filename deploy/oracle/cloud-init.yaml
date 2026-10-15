@@ -1,0 +1,30 @@
+#cloud-config
+# Ubuntu 24.04 LTS, ARM64 or AMD64. Preparation only: no production DB access.
+package_update: true
+packages:
+  - ca-certificates
+  - curl
+  - git
+  - docker.io
+  - docker-compose-v2
+write_files:
+  - path: /usr/local/sbin/acr-prepare
+    permissions: '0700'
+    owner: root:root
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      umask 077
+      systemctl enable --now docker
+      install -d -m 0700 /opt/acr
+      if [ ! -d /opt/acr/source ]; then
+        git clone --no-checkout https://github.com/ValtteriPSR/acr-daily.git /opt/acr/source
+      fi
+      cd /opt/acr/source
+      git fetch origin rally-club
+      # Immutable production version validated before migration preparation.
+      git checkout --detach 760a085795329d1d2372cb6abb9ac1db7ad56e49
+      docker build -t acr-rally-club:0.2.16 -f deploy/Dockerfile .
+      printf '%s\n' 'Prepared only. Configure securely and validate before starting production.'
+runcmd:
+  - ['/usr/local/sbin/acr-prepare']

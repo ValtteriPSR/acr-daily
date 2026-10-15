@@ -1,0 +1,24 @@
+[Unit]
+Description=ACR Rally Club HTTPS gateway
+Requires=acr-app.service
+After=acr-app.service
+
+[Container]
+Image=docker.io/library/caddy:2.9
+ContainerName=acr-caddy
+EnvironmentFile=/opt/acr/gateway.env
+Network=acr-network.network
+PublishPort=80:80
+PublishPort=443:443
+PublishPort=443:443/udp
+Volume=/opt/acr/Caddyfile:/etc/caddy/Caddyfile:ro,Z
+Volume=acr-caddy-data:/data
+Volume=acr-caddy-config:/config
+
+[Service]
+Restart=always
+RestartSec=3
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,22 @@
+[Unit]
+Description=ACR Rally Club application (single production writer)
+Wants=network-online.target
+After=network-online.target acr-postgres.service
+Requires=acr-postgres.service
+
+[Container]
+Image=localhost/acr-rally-club:0.2.16
+ContainerName=acr-app
+EnvironmentFile=/opt/acr/production.env
+Network=acr-network.network
+NetworkAlias=app
+Volume=/opt/acr/data:/data:Z
+
+[Service]
+ExecStartPre=/usr/bin/podman exec acr-postgres pg_isready -U postgres -d acr_club
+Restart=always
+RestartSec=3
+TimeoutStartSec=300
+
+[Install]
+WantedBy=multi-user.target

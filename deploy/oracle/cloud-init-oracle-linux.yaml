@@ -1,0 +1,11 @@
+#cloud-config
+write_files:
+  - path: /etc/sudoers.d/101-oracle-cloud-agent-run-command
+    owner: root:root
+    permissions: '0440'
+    content: |
+      ocarun ALL=(ALL) NOPASSWD:ALL
+runcmd:
+  - [visudo, -cf, /etc/sudoers.d/101-oracle-cloud-agent-run-command]
+  - [mkdir, -p, /opt/acr]
+  - [chmod, '0700', /opt/acr]
