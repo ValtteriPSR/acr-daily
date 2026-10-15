@@ -4,12 +4,35 @@ The deployed club remains on Render at commit
 `760a085795329d1d2372cb6abb9ac1db7ad56e49` (launcher 0.2.16).
 First move the application only; retain Neon until a separate database migration.
 
-## Current blocker
+## Verified access and infrastructure (15 October 2026)
 
-The Oracle console returned `Site Unavailable / Unable to access this site` in
-the agent browser, including after a reload on 15 October 2026. No account,
-region, quotas, instance, network, IP address or login session could be inspected.
-No Oracle resources have been created and DNS has not changed.
+OCI REST authentication succeeds with the owner's registered API signing key.
+Frankfurt is the subscribed home region. A dedicated compartment and network
+were created, with web ingress on 80/443 and SSH restricted to the operator's
+observed source address. Port 8790 and the database are not public.
+
+Capacity reports returned unavailable but an actual free-size A1 request
+succeeded. Two staging machines currently use 1 OCPU / 2 GB / 50 GB each:
+Ubuntu 24.04 and Oracle Linux 9.8. They contain no production database data.
+The Ubuntu staging machine should be removed after replacement validation.
+The two combined allocations remain within the checked free resource totals.
+
+SSH is unavailable from this execution environment. Oracle Linux's supported
+Run Command agent was verified: cloud-init completed, commands execute as root
+through reviewed sudoers permissions, and SELinux remains Enforcing. An IAM
+dynamic group is limited to the dedicated compartment and its policy allows
+instances to execute only commands targeted at themselves. The original Ubuntu
+bootstrap remains available for operators who have SSH access.
+
+Render configuration was exported through the authenticated dashboard into a
+protected migration file outside the repository. Do not commit it or include it
+in command output. Provisioning user data contains no production secrets.
+Run Command scripts and responses are retained by OCI: transfer secrets only
+with encryption whose private receiving key remains on the target machine.
+
+Production continues on Render; DNS has not changed. Container preparation,
+staging verification, secure configuration transfer, a fresh backup and controlled
+cutover are still required. No production Oracle deployment is claimed here.
 
 ## Prepared and testable
 
@@ -30,7 +53,7 @@ Oracle capacity, billing, external connectivity or a live game launch.
 
 1. Inspect the actual home region, Always Free entitlement and existing usage.
    Choose an Always Free eligible Ubuntu 24.04 A1 Flex instance, initially
-   1 OCPU / 4 GB RAM and a 50 GB boot disk, only if the console confirms those
+   1 OCPU / 2 GB RAM and a 50 GB boot disk, only if the console confirms those
    resources fit the free allocation. Do not use trial credits as proof of a
    permanently free configuration. Create no paid upgrades, extra volumes or
    load balancers automatically. If capacity is unavailable, pause and report it.
