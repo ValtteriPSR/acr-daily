@@ -129,7 +129,9 @@ def main():
                 page.locator('.trace-root > summary').click()
                 expect(page.locator('.trace-driver')).to_have_count(1)
                 expect(page.locator('.trace-driver .trace-progress')).to_be_visible()
-                assert 'has not finished all stages yet.' in page.locator('.trace-progress').first.inner_text()
+                progress=page.locator('.trace-progress').first.inner_text()
+                assert progress in ('The driver has not finished all stages yet.',
+                                    'Zawodnik nie ukończył jeszcze wszystkich OS.'),repr(progress)
                 page.locator('.trace-driver > summary').first.click()
                 page.locator('[data-trace-stage] > summary').first.click()
                 page.locator('.trace-map').first.wait_for(state='visible')
@@ -161,8 +163,7 @@ def main():
                 account=steam_finish(store,authenticated_pending(store),'Browser Member')
                 page.context.add_cookies([{'name':'acrclub_member','value':account['token'],'url':origin}])
                 for n,lang in enumerate(('pl','en')):
-                    page.context.add_cookies([{'name':'acrclub_language','value':lang,'url':origin}])
-                    page.goto(origin+'/club')
+                    page.goto(origin+'/language?lang='+lang+'&next=/club')
                     page.locator('input[name="nickname"]').fill('Browser Club '+str(n))
                     with page.expect_navigation():page.locator('form[action="/web/club/nickname"] button').click()
                     notice=page.locator('.nickname-saved')
