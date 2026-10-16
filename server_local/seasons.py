@@ -652,13 +652,15 @@ def members_list_sql(store):
     return store.db.execute('SELECT id,nickname FROM club_members ORDER BY nickname_key').fetchall()
 
 
-def club_page(member,csrf,pending=False):
+def club_page(member,csrf,pending=False,nickname_saved=False):
     field='<input type="hidden" name="csrf" value="'+escape(csrf,quote=True)+'">'
     if member and member.get('steam_verified'):
         return (tr('<h1>ACR Rally Club · profile</h1><section class="card"><h2>Welcome, ')+escape(member['nickname'])+
                 tr('</h2><p>Signed in through Steam. Your club nickname can be different from your Steam profile name.</p><form action="/web/club/nickname" method="post">')+field+
                 tr('<label>Club nickname <input name="nickname" required minlength="2" maxlength="24" autocomplete="nickname" value="')+escape(member['nickname'],quote=True)+
-                tr('"></label> <button class="run">SAVE NICKNAME</button></form><p>Changing your nickname keeps your rally entries, attempts and results.</p><p><a href="/">Choose a rally</a> · <a href="/seasons">Seasons</a></p><form action="/web/club/logout" method="post">')+field+
+                tr('"></label> <button class="run">SAVE NICKNAME</button></form>')+
+                ('<p class="small good nickname-saved" role="status">'+escape(tr('Your custom nickname has been saved.'))+'</p>' if nickname_saved else '')+
+                tr('<p>Changing your nickname keeps your rally entries, attempts and results.</p><p><a href="/">Choose a rally</a> · <a href="/seasons">Seasons</a></p><form action="/web/club/logout" method="post">')+field+
                 tr('<button>Sign out of the club</button></form></section>'))
     if pending:
         return (tr('<h1>Steam sign-in confirmed</h1><section class="card"><h2>Choose your club nickname</h2><p>This nickname is linked to your Steam account. You can change it later in My profile.</p><form action="/web/club/register" method="post">')+field+

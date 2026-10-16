@@ -8,6 +8,21 @@ MAX_STAGE_POINTS=16000
 MAX_EVENT_POINTS=200000
 MAX_TOTAL_POINTS=1000000
 
+# A registration or RUN alone is not a driven stage. The start history survives
+# DNF and service breaks, unlike players.started (the current stage timer).
+_STARTED_SQL='''(p.started IS NOT NULL OR p.car_id IS NOT NULL OR p.stage_index>0
+    OR EXISTS (SELECT 1 FROM stage_starts s WHERE s.player_id=p.id)
+    OR EXISTS (SELECT 1 FROM telemetry_runs h WHERE h.player_id=p.id))'''
+
+
+def _progress(status):
+    css,text={
+        'dnf':('trace-bad','DNF — the driver did not finish the rally.'),
+        'completed':('trace-good','Rally completed.'),
+        'awaiting_results':('trace-warn','All stages driven — awaiting official result confirmation.'),
+    }.get(status,('trace-warn','The driver has not finished all stages yet.'))
+    return '<span class="small trace-progress '+css+'">'+escape(tr(text))+'</span>'
+
 
 def install(store):
     store.db.execute('''CREATE TABLE IF NOT EXISTS telemetry_runs (
@@ -152,9 +167,10 @@ def summaries(store,event_id):
         rows=store.db.execute('''SELECT p.id,p.nickname,p.status,p.stage_index,t.stage_index AS recorded_stage,t.point_count,t.summary,t.updated,
           t.last_seq,r.raw_ms,v.clock_ms FROM players p LEFT JOIN telemetry_runs t ON t.player_id=p.id
           LEFT JOIN results r ON r.player_id=p.id AND r.stage_index=t.stage_index
-          LEFT JOIN provisional v ON v.player_id=p.id AND v.stage_index=t.stage_index WHERE p.event_id=? ORDER BY p.nickname,t.stage_index''',(event_id,)).fetchall()
+          LEFT JOIN provisional v ON v.player_id=p.id AND v.stage_index=t.stage_index WHERE p.event_id=? AND '''+_STARTED_SQL+''' ORDER BY p.nickname,t.stage_index''',(event_id,)).fetchall()
         groups={}
         for r in rows:groups.setdefault(r['id'],[]).append(r)
+        if not groups:return '<p class="muted">'+escape(tr('No drivers have started a stage yet.'))+'</p>'
         out='<p class="muted">'+escape(tr('Review signals, not a cheating verdict. Client telemetry can be forged. The path is a world-coordinate projection, not an official road map.'))+'</p>'
         for pid,group in groups.items():
             levels=[];notes=[];count=0
@@ -172,7 +188,7 @@ def summaries(store,event_id):
             if timing:levels.append(1);notes.extend(timing)
             level=max(levels);css=['trace-good','trace-warn','trace-bad'][level]
             title=[tr('No detected signals'),tr('Review / incomplete data'),tr('Significant signal / DNF')][level]
-            out+='<details class="round trace-driver" data-src="/api/telemetry/'+escape(event_id,quote=True)+'/driver/'+str(pid)+'"><summary><span>'+escape(group[0]['nickname'])+' · <span class="'+css+'">'+escape(title)+'</span></span><span>'+str(count)+' '+escape(tr('samples'))+'</span></summary><p class="small '+css+'">'+escape('; '.join(dict.fromkeys(notes)))+'</p><div class="trace-content"></div></details>'
+            out+='<details class="round trace-driver" data-src="/api/telemetry/'+escape(event_id,quote=True)+'/driver/'+str(pid)+'"><summary><span>'+escape(group[0]['nickname'])+' · <span class="'+css+'">'+escape(title)+'</span>'+_progress(group[0]['status'])+'</span><span>'+str(count)+' '+escape(tr('samples'))+'</span></summary>'+'<p class="small '+css+'">'+escape('; '.join(dict.fromkeys(notes)))+'</p><div class="trace-content"></div></details>'
         return out or '<p>'+escape(tr('No retained telemetry'))+'</p>'
 
 
@@ -204,8 +220,9 @@ def driver(store,event_id,player_id):
     from server import Fault
     with store.lock:
         row,ev=store.event(event_id)
-        p=store.db.execute('SELECT nickname,status FROM players WHERE id=? AND event_id=?',(player_id,event_id)).fetchone()
+        p=store.db.execute('SELECT p.nickname,p.status,'+_STARTED_SQL+' AS has_started FROM players p WHERE p.id=? AND p.event_id=?',(player_id,event_id)).fetchone()
         if not p:raise Fault(404,tr('Driver does not belong to this rally'))
+        if not p['has_started']:return ''
         if expired(store,event_id,row['closes'],time.time()):return '<p>'+escape(expired_message())+'</p>'
         runs=store.db.execute('SELECT * FROM telemetry_runs WHERE player_id=? ORDER BY stage_index',(player_id,)).fetchall()
         out=''
@@ -218,7 +235,7 @@ def driver(store,event_id,player_id):
             if s['gas_n']:info.append(tr('Average gas')+': %.0f%%'%(s['gas_total']/s['gas_n']*100))
             if s['brake_n']:info.append(tr('Average brake')+': %.0f%%'%(s['brake_total']/s['brake_n']*100))
             out+='<p>'+escape(' · '.join(info))+'</p>'+_route(points)+'</details>'
-        return out or '<p>'+escape(tr('No retained telemetry'))+'</p>'
+        return _progress(p['status'])+(out or '<p>'+escape(tr('No retained telemetry'))+'</p>')
 
 
 def section(event_id):

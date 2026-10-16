@@ -463,5 +463,13 @@
   "No teams configured.": "Nie ustawiono zespołów.",
   "Divisions": "Dywizje",
   "Not configured": "Nie ustawiono",
-  "Season scoring rules": "Zasady punktacji sezonu"
+  "Season scoring rules": "Zasady punktacji sezonu",
+  "Your custom nickname has been saved.": "Indywidualny nick został zapisany.",
+  "<p>Changing your nickname keeps your rally entries, attempts and results.</p><p><a href=\"/\">Choose a rally</a> · <a href=\"/seasons\">Seasons</a></p><form action=\"/web/club/logout\" method=\"post\">": "<p>Zmiana nicku zachowuje zgłoszenia, próby i wyniki rajdów.</p><p><a href=\"/\">Wybierz rajd</a> · <a href=\"/seasons\">Sezony</a></p><form action=\"/web/club/logout\" method=\"post\">",
+  "\"></label> <button class=\"run\">SAVE NICKNAME</button></form>": "\"></label> <button class=\"run\">ZAPISZ NICK</button></form>",
+  "DNF — the driver did not finish the rally.": "DNF — zawodnik nie ukończył rajdu.",
+  "Rally completed.": "Rajd ukończony.",
+  "All stages driven — awaiting official result confirmation.": "Wszystkie OS przejechane — oczekiwanie na potwierdzenie oficjalnych wyników.",
+  "The driver has not finished all stages yet.": "Zawodnik nie ukończył jeszcze wszystkich OS.",
+  "No drivers have started a stage yet.": "Żaden zawodnik nie wystartował jeszcze do OS."
 }
