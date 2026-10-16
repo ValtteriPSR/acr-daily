@@ -10,10 +10,21 @@ def _date_plus_two(timestamp):
 
 from server import format_ms
 from site_theme import shell, FILTER_JS
+from local_time import label as local_date
 
 
 def _chip(txt,extra=''):
     return '<span class="chip '+extra+'">'+e(str(txt))+'</span>'
+
+
+def _round_status(rally):
+    if rally['closed']:
+        return _chip(tr('POINTS FINALIZED'),'round-status chip-active')
+    if not rally['started']:
+        return _chip(tr('Not started yet. Start - ')+local_date(rally['opensAt']),
+                     'round-status chip-upcoming')
+    return _chip(tr('LIVE - ends: ')+local_date(rally['closesAt']),
+                 'round-status chip-active')
 
 
 def season_list(seasons):
@@ -69,10 +80,9 @@ def season_detail(data):
                '<td class="points-strong">'+str(t['points'])+'</td></tr>')
     page+='</tbody></table></div></section>'
     page+=tr('<section class="card"><div class="card-head"><div><span class="section-kicker">Results calendar</span><h2>Rounds and points</h2></div></div>')
-    page+=tr('<p class="muted">Points are finalized after the rally closes; positions are provisional until then.</p>')
+    page+=tr('<p class="muted">Points are finalized after the rally closes. All dates are shown in Polish time.</p>')
     for ix,rally in enumerate(rallies,1):
-        closed=rally['closed']
-        page+='<details class="round"'+''+'><summary><span>R'+f'{ix:02d}'+' · '+e(rally['name'])+'</span>'+_chip(tr('POINTS FINALIZED') if closed else tr('PROVISIONAL'),'chip-active' if closed else 'chip-upcoming')+'</summary>'
+        page+='<details class="round season-round"><summary><span>R'+f'{ix:02d}'+' · '+e(rally['name'])+'</span>'+_round_status(rally)+'</summary>'
         page+='<p><a href="/rally/'+e(rally['id'],quote=True)+tr('">Open stage and rally results →</a></p>')
         page+=tr('<div class="table-scroll"><table><thead><tr><th>Position</th><th>Driver</th><th>Time</th><th>Overall pts.</th><th>Division position</th><th>Division pts.</th><th>PS position</th><th>PS pts.</th></tr></thead><tbody>')
         for entry in rally['results']:

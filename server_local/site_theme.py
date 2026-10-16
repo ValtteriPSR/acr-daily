@@ -236,6 +236,7 @@ details.round{border:1px solid var(--line);background:var(--bg);margin:0 0 8px}
 details.round summary{display:flex;justify-content:space-between;align-items:center;gap:14px;cursor:pointer;list-style:none;padding:13px 16px;font-family:var(--f-disp);text-transform:uppercase;font-weight:700;font-size:17px;letter-spacing:.03em;color:var(--text)}
 details.round summary::-webkit-details-marker{display:none}
 details.round summary>span:first-child{flex:1;min-width:0;overflow-wrap:anywhere}
+.season-round .round-status{white-space:normal;text-transform:none;letter-spacing:.03em;max-width:75%}
 details.round summary::after{content:"+";font-family:var(--f-mono);font-size:20px;color:var(--orange);line-height:1}
 details.round[open] summary::after{content:"−"}
 details.round[open] summary{border-bottom:1px solid var(--line);background:var(--surface)}
@@ -294,6 +295,8 @@ body.acr-admin input,body.acr-admin select,body.acr-admin textarea{background:va
 @media (max-width:1100px){.nav{display:none}.burger{display:grid}}
 @media (max-width:860px){.split,.grid{grid-template-columns:1fr}}
 @media (max-width:720px){
+  .season-round>summary{flex-wrap:wrap}
+  .season-round>summary>span:first-child{flex-basis:100%}
   .topbar__cta,.discord-invite{display:none!important}
   .topbar__in{gap:10px}
   .topbar__tools{gap:6px}

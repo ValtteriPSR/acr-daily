@@ -471,5 +471,8 @@
   "Rally completed.": "Rajd ukończony.",
   "All stages driven — awaiting official result confirmation.": "Wszystkie OS przejechane — oczekiwanie na potwierdzenie oficjalnych wyników.",
   "The driver has not finished all stages yet.": "Zawodnik nie ukończył jeszcze wszystkich OS.",
-  "No drivers have started a stage yet.": "Żaden zawodnik nie wystartował jeszcze do OS."
+  "No drivers have started a stage yet.": "Żaden zawodnik nie wystartował jeszcze do OS.",
+  "Not started yet. Start - ": "Jeszcze nie wystartował. Start - ",
+  "LIVE - ends: ": "TRWA - koniec: ",
+  "<p class=\"muted\">Points are finalized after the rally closes. All dates are shown in Polish time.</p>": "<p class=\"muted\">Punkty są zatwierdzane po zakończeniu terminu rajdu. Wszystkie daty podano w czasie polskim.</p>"
 }
