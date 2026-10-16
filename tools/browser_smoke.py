@@ -27,7 +27,13 @@ def main():
     with tempfile.TemporaryDirectory() as directory:
         store=Store(Path(directory)/'club.db');ev=event();store.import_event(ev)
         season_event=new_event('season-summary-browser');store.import_event(season_event)
-        season_id=save_season(store,new_season())['id'];set_rallies(store,season_id,[season_event['id']])
+        now=datetime.now(timezone.utc)
+        upcoming=new_event('upcoming-season-round');upcoming.update(
+            opensAt=(now+timedelta(days=2)).isoformat(),closesAt=(now+timedelta(days=3)).isoformat())
+        past=new_event('past-season-round');past.update(
+            opensAt=(now-timedelta(days=2)).isoformat(),closesAt=(now-timedelta(days=1)).isoformat())
+        store.import_event(upcoming);store.import_event(past)
+        season_id=save_season(store,new_season())['id'];set_rallies(store,season_id,[season_event['id'],upcoming['id'],past['id']])
         set_rally_points(store,season_id,season_event['id'],[50,35,20],[12,8],[3,1])
         add_group(store,season_id,'division','Division One');add_group(store,season_id,'team','Club Team')
         driver=store.join(ev['id'],'Browser Driver')['token']
@@ -61,7 +67,7 @@ def main():
                     page.context.add_cookies([{'name':'acrclub_language','value':lang,'url':origin}])
                     for width in (390,1280):
                         page.set_viewport_size({'width':width,'height':900})
-                        for path in ('/', '/guide','/launcher','/seasons', '/rally/'+ev['id'],'/rally/'+season_event['id'],admin_path(auth.key_path),admin_path(auth.key_path)+'/seasons'):
+                        for path in ('/', '/guide','/launcher','/seasons','/season/'+season_id, '/rally/'+ev['id'],'/rally/'+season_event['id'],admin_path(auth.key_path),admin_path(auth.key_path)+'/seasons'):
                             page.goto(origin+path)
                             if not page.evaluate('document.documentElement.scrollWidth<=innerWidth+1'):
                                 print('Overflow nodes:',page.evaluate("[...document.querySelectorAll('main *, .sitebar *')].filter(e=>{const r=e.getBoundingClientRect();return r.right>innerWidth+1 && getComputedStyle(e).position!=='absolute'}).map(e=>({tag:e.tagName,cls:e.className,width:e.getBoundingClientRect().width,text:e.textContent.slice(0,70)})).slice(0,15)"))
@@ -92,6 +98,13 @@ def main():
                                 assert '12, 8' in rules.inner_text() and '3, 1' in rules.inner_text()
                                 assert 'Division One' in rules.inner_text()
                                 assert rules.evaluate('(e)=>parseFloat(getComputedStyle(e).fontSize)')==12
+                            if path=='/season/'+season_id:
+                                badges=page.locator('.season-round .round-status')
+                                assert badges.count()==3
+                                assert ('TRWA - koniec: ' if lang=='pl' else 'LIVE - ends: ') in badges.nth(0).text_content()
+                                assert ('Jeszcze nie wystartował. Start - ' if lang=='pl' else 'Not started yet. Start - ') in badges.nth(1).text_content()
+                                assert ('PUNKTY ZATWIERDZONE' if lang=='pl' else 'POINTS FINALIZED') in badges.nth(2).text_content()
+                                assert badges.nth(1).evaluate('(e)=>getComputedStyle(e).textTransform')=='none'
                             if path.startswith('/rally/'):
                                 assert page.locator('#rally-stage-results details[open]').count()==0
                         page.goto(origin+'/');assert page.locator('a[href$="/ACR-Rally-Club-Setup.exe"]').first.get_attribute('href').startswith('https://github.com/')

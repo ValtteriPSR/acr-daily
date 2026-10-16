@@ -43,6 +43,42 @@ class SeasonTests(unittest.TestCase):
     def tearDown(self):
         self.s.db.close();self.temp.cleanup()
 
+    def test_round_status_dates_and_exact_start_end_boundaries(self):
+        from season_views import season_detail
+        from i18n import _language
+        opening=datetime(2026,10,24,22,30,tzinfo=timezone.utc).timestamp()
+        closing=datetime(2026,10,25,22,30,tzinfo=timezone.utc).timestamp()
+        self.s.db.execute('UPDATE events SET opens=?,closes=? WHERE id=?',
+                          (opening,closing,self.e['id']))
+        for now,started,closed in [(opening-1,False,False),(opening,True,False),
+                                   (closing-1,True,False),(closing,True,True)]:
+            data=scoring(self.s,self.sid,now=now);rally=data['rallies'][0]
+            self.assertEqual((rally['started'],rally['closed']),(started,closed))
+            self.assertEqual(datetime.fromisoformat(rally['opensAt']).timestamp(),opening)
+            self.assertEqual(datetime.fromisoformat(rally['closesAt']).timestamp(),closing)
+            for lang in ('pl','en'):
+                token=_language.set(lang)
+                try:page=season_detail(data)
+                finally:_language.reset(token)
+                self.assertNotIn('PROVISIONAL',page)
+                self.assertNotIn('PROWIZORYCZNIE',page)
+                if closed:
+                    self.assertIn('PUNKTY ZATWIERDZONE' if lang=='pl' else 'POINTS FINALIZED',page)
+                elif started:
+                    self.assertIn(('TRWA - koniec: ' if lang=='pl' else 'LIVE - ends: ')+
+                                  '25.10.2026 · 23:30',page)
+                else:
+                    self.assertIn(('Jeszcze nie wystartował. Start - ' if lang=='pl' else
+                                   'Not started yet. Start - ')+'25.10.2026 · 00:30',page)
+
+    def test_live_round_uses_live_status_even_without_results(self):
+        from season_views import season_detail
+        data=scoring(self.s,self.sid)
+        self.assertFalse(data['rallies'][0]['results'])
+        page=season_detail(data)
+        self.assertIn('TRWA - koniec: ',page)
+        self.assertNotIn('PROWIZORYCZNIE',page)
+
     def register(self,nick):
         a=register_member(self.s,nick)
         m=member_by_cookie(self.s,a['token'])

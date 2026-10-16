@@ -629,7 +629,10 @@ def scoring(store,season_id,now=None):
                 t=totals[mid]
                 t['general']+=gen_points;t['division']+=div_points;t['powerStage']+=power_points
                 if is_closed:t['finishes']+=1
-            rallies.append({'id':ev['id'],'name':ev['name'],'closed':bool(is_closed),'results':entries})
+            rallies.append({'id':ev['id'],'name':ev['name'],
+                            'opensAt':ev['opensAt'],'closesAt':ev['closesAt'],
+                            'started':_date(ev['opensAt'])<=now,
+                            'closed':bool(is_closed),'results':entries})
         for t in totals.values():t['total']=t['general']+t['division']+t['powerStage']
         drivers=sorted(totals.values(),key=lambda x:(-x['total'],-x['finishes'],-x['general'],x['nickname'].casefold()))
         teams=[]
