@@ -265,6 +265,8 @@ select option{background:var(--surface);color:var(--text)}
 .notice{border-left:2px solid var(--amber);padding:6px 0 6px 12px;color:var(--dim)}
 
 /* telemetria i okno RUN (moduły z własnymi klasami) */
+.nickname-saved{font-size:12px;margin:8px 0}
+.trace-progress{display:block;font-size:12px;margin:4px 0;line-height:1.5;font-family:var(--f-body);font-weight:400;text-transform:none;letter-spacing:normal}
 .trace-good{color:var(--green)!important}.trace-warn{color:var(--amber-ink)!important}.trace-bad{color:var(--red)!important}
 .trace-map,.trace-speed{display:block;width:100%;max-height:520px;border:1px solid var(--line);margin:12px 0;background:var(--bg)}
 .trace-content{min-width:0}

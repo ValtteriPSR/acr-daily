@@ -1101,9 +1101,11 @@ def make_handler(store, admin=None, catalog_root=None):
                     from site_theme import shell
                     content=shell(tr('ACR Rally Club — Club account'),
                                   tr('<section class="hero"><span class="eyebrow">Club members</span><h1>Club account</h1><p>Your nickname for the season, rallies and divisions.</p></section>')+
-                                  club_page(member,csrf,pending=bool(pending)),active='club')
+                                  club_page(member,csrf,pending=bool(pending),
+                                      nickname_saved=cookies.get('acrclub_nickname_saved')=='1'),active='club')
                     return self._write(200,content,'text/html; charset=utf-8',
-                         {'Set-Cookie':make_cookie('acrclub_csrf',csrf,secure=self._secure_cookie())})
+                         {'Set-Cookie':[make_cookie('acrclub_csrf',csrf,secure=self._secure_cookie()),
+                             steam_auth.cookie('acrclub_nickname_saved','',secure=self._secure_cookie(),age=0)]})
                 if path == '/seasons':
                     from season_views import season_list
                     return self._write(200,season_list(list_seasons(store)),'text/html; charset=utf-8')
@@ -1232,6 +1234,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     cookies=self._require_web_form(data)
                     account=steam_finish(store,cookies.get('acrclub_steam_pending'),data.get('nickname',''))
                     return self._redirect('/club',cookie=[club_cookie(account['token'],secure=self._secure_cookie()),
+                        steam_auth.cookie('acrclub_nickname_saved','1',secure=self._secure_cookie(),age=60),
                         steam_auth.cookie('acrclub_steam_pending','',secure=self._secure_cookie(),age=0)])
                 if path in ('/web/club/nickname','/web/club/logout'):
                     self._limit(path,20)
@@ -1239,7 +1242,7 @@ def make_handler(store, admin=None, catalog_root=None):
                     cookies=self._require_web_form(data)
                     if path.endswith('/nickname'):
                         change_nickname(store,cookies.get('acrclub_member'),data.get('nickname',''))
-                        return self._redirect('/club')
+                        return self._redirect('/club',cookie=steam_auth.cookie('acrclub_nickname_saved','1',secure=self._secure_cookie(),age=60))
                     club_logout(store,cookies.get('acrclub_member'),cookies.get('acrclub_steam_pending'))
                     return self._redirect('/club',cookie=[
                         steam_auth.cookie('acrclub_member','',secure=self._secure_cookie(),age=0),

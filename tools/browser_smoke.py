@@ -16,6 +16,8 @@ from admin_access import admin_path
 from test_server import event
 from test_seasons import new_event, new_season
 from seasons import save_season, set_rallies, set_rally_points, add_group
+from seasons import steam_finish
+from test_steam_auth import authenticated_pending
 from integrity_rules import expected_settings
 import club_settings
 import telemetry_audit
@@ -125,6 +127,11 @@ def main():
                 points=[[i,i/1000*10,0,36,.5,.1,0,2,4000,False] for i in range(1000,60001,5000)]
                 telemetry_audit.submit(store,driver,{'eventId':ev['id'],'stageIndex':0,'seq':0,'points':points,'dropped':0})
                 page.locator('.trace-root > summary').click()
+                expect(page.locator('.trace-driver')).to_have_count(1)
+                expect(page.locator('.trace-driver .trace-progress')).to_be_visible()
+                progress=page.locator('.trace-progress').first.inner_text()
+                assert progress in ('The driver has not finished all stages yet.',
+                                    'Zawodnik nie ukończył jeszcze wszystkich OS.'),repr(progress)
                 page.locator('.trace-driver > summary').first.click()
                 page.locator('[data-trace-stage] > summary').first.click()
                 page.locator('.trace-map').first.wait_for(state='visible')
@@ -148,6 +155,23 @@ def main():
                 page.locator('#apAdd').click()
                 page.locator('#apHistory').get_by_text('Browser test penalty',exact=False).wait_for()
                 assert store.board(ev['id'])['stageResults'][0]['admin_penalty_ms']==5000
+                store.start(driver,ev['id'],1,ev['allowedCars'][0],expected_settings(ev))
+                store.dnf(driver,'Browser test retirement')
+                page.goto(origin+'/rally/'+ev['id'])
+                page.locator('.trace-root > summary').click()
+                expect(page.locator('.trace-driver .trace-progress')).to_contain_text('DNF')
+                account=steam_finish(store,authenticated_pending(store),'Browser Member')
+                page.context.add_cookies([{'name':'acrclub_member','value':account['token'],'url':origin}])
+                for n,lang in enumerate(('pl','en')):
+                    page.goto(origin+'/language?lang='+lang+'&next=/club')
+                    page.locator('input[name="nickname"]').fill('Browser Club '+str(n))
+                    with page.expect_navigation():page.locator('form[action="/web/club/nickname"] button').click()
+                    notice=page.locator('.nickname-saved')
+                    expect(notice).to_be_visible()
+                    assert notice.inner_text()==('Indywidualny nick został zapisany.' if lang=='pl' else 'Your custom nickname has been saved.')
+                    assert notice.evaluate('(e)=>getComputedStyle(e).fontSize')=='12px'
+                    assert notice.evaluate('(e)=>getComputedStyle(e).color')=='rgb(63, 191, 127)'
+                    page.reload();expect(page.locator('.nickname-saved')).to_have_count(0)
                 assert not errors,errors
                 browser.close()
         finally:

@@ -34,6 +34,42 @@ class Update029Tests(unittest.TestCase):
         self.assertEqual(self.s.state(self.token)['status'],'active');self.assertFalse(self.s.state(self.token)['results'])
         self.assertEqual(self.s.db.execute('SELECT point_count FROM telemetry_runs').fetchone()[0],2)
         self.assertIn('polyline',audit.driver(self.s,self.ev['id'],self.s._auth(self.token)['id']))
+    def test_registration_and_run_without_stage_start_are_hidden(self):
+        pid=self.s._auth(self.token)['id']
+        text=audit.summaries(self.s,self.ev['id'])
+        self.assertNotIn('trace-driver',text)
+        self.assertEqual(audit.driver(self.s,self.ev['id'],pid),'')
+        self.s.db.execute("UPDATE players SET status='ready' WHERE id=?",(pid,))
+        self.assertNotIn('trace-driver',audit.summaries(self.s,self.ev['id']))
+        self.assertEqual(audit.driver(self.s,self.ev['id'],pid),'')
+        self.start()
+        for page in (audit.summaries(self.s,self.ev['id']),audit.driver(self.s,self.ev['id'],pid)):
+            self.assertIn('Zawodnik nie ukończył jeszcze wszystkich OS.',page)
+        self.assertIn('trace-driver',audit.summaries(self.s,self.ev['id']))
+
+    def test_progress_survives_service_and_dnf_without_samples(self):
+        pid=self.s._auth(self.token)['id']
+        self.start();self.s.stage_end(self.token,self.ev['id'],0,60000,self.report)
+        self.assertIsNone(self.s._auth(self.token)['started'])
+        self.assertIn('Zawodnik nie ukończył jeszcze wszystkich OS.',audit.summaries(self.s,self.ev['id']))
+        self.s.start(self.token,self.ev['id'],1,self.car,self.report)
+        self.s.dnf(self.token,'Driver retired during the next stage')
+        for page in (audit.summaries(self.s,self.ev['id']),audit.driver(self.s,self.ev['id'],pid)):
+            self.assertIn('DNF — zawodnik nie ukończył rajdu.',page)
+            self.assertNotIn('Zawodnik nie ukończył jeszcze wszystkich OS.',page)
+
+    def test_confirmation_pending_and_completed_statuses_in_both_languages(self):
+        self.finish(0);self.finish(1)
+        pid=self.s._auth(self.token)['id']
+        self.assertEqual(self.s.state(self.token)['status'],'awaiting_results')
+        self.assertIn('oczekiwanie na potwierdzenie',audit.summaries(self.s,self.ev['id']))
+        self.s.finalize(self.token,{'stages':[self.record(0),self.record(1)],'settings':self.report})
+        for lang,text in [('pl','Rajd ukończony.'),('en','Rally completed.')]:
+            context=_language.set(lang)
+            try:
+                self.assertIn(text,audit.summaries(self.s,self.ev['id']))
+                self.assertIn(text,audit.driver(self.s,self.ev['id'],pid))
+            finally:_language.reset(context)
     def test_busy_timing_lock_defers_trace_without_waiting_or_dnf(self):
         self.start();held=threading.Event();release=threading.Event()
         def busy():
