@@ -629,7 +629,15 @@ def site(store, identifier=None, browser=None, csrf=None, member=None):
 
     now=time.time()
     if not identifier:
-        evs=store.listing()
+        def rally_order(ev):
+            opening,closing=utc_epoch(ev['opensAt']),utc_epoch(ev['closesAt'])
+            if closing<now:
+                return (2,-opening,ev['id'])  # Keep the archive newest first.
+            return (0 if opening<=now else 1,opening,ev['id'])
+
+        # Live rallies first, then the soonest upcoming starts. Sort only this
+        # public calendar; administration and other listing consumers stay intact.
+        evs=sorted(store.listing(),key=rally_order)
         upcoming=sum(utc_epoch(ev['opensAt'])>now for ev in evs)
         active=sum(utc_epoch(ev['opensAt'])<=now<=utc_epoch(ev['closesAt']) for ev in evs)
         content=(tr('<section class="hero"><span class="eyebrow">Assetto Corsa Rally · Club competition</span><h1>Rallies and events</h1><p>Choose a rally, read the rules and start with one click. Stages, standings and club results in one place.</p><p><a class="btn-link" href="/download">⬇ DOWNLOAD WINDOWS LAUNCHER</a>\u3000<a class="btn-link" href="/guide">Getting started →</a></p><div class="stats"><div class="stat"><strong>')+str(len(evs))+tr('</strong><span>Rallies</span></div><div class="stat"><strong>')+str(active)+tr('</strong><span>Live</span></div><div class="stat"><strong>')+str(upcoming)+tr('</strong><span>Scheduled</span></div></div></section>'))
