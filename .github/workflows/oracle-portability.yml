@@ -32,6 +32,8 @@ jobs:
           assert 'DATABASE_URL' not in str(config)
           assert 'docker compose up' not in script
           PY
+      - name: Gateway recovers from an initial backend startup failure
+        run: sudo python3 deploy/oracle/test_gateway_startup.py
       - name: Build existing server on the native architecture
         run: docker build -t acr-oracle-check -f deploy/Dockerfile .
       - name: Check native PostgreSQL and password dependencies
