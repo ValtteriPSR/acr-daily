@@ -34,6 +34,8 @@ jobs:
           PY
       - name: Gateway recovers from an initial backend startup failure
         run: sudo python3 deploy/oracle/test_gateway_startup.py
+      - name: Oversized backup jobs stay within their memory limit
+        run: sudo python3 deploy/oracle/test_backup_memory.py
       - name: Build existing server on the native architecture
         run: docker build -t acr-oracle-check -f deploy/Dockerfile .
       - name: Check native PostgreSQL and password dependencies
