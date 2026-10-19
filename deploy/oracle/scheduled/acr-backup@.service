@@ -10,5 +10,10 @@ UMask=0077
 EnvironmentFile=/opt/acr/backup-schedule.env
 ExecStart=/usr/bin/python3 /opt/acr/backup-scheduled.py %i
 TimeoutStartSec=1800
+# Bound the entire job, including SDK and subprocesses, on the 2 GiB VM.
+MemoryAccounting=yes
+MemoryHigh=384M
+MemoryMax=512M
+MemorySwapMax=128M
 Nice=10
 IOSchedulingClass=idle
