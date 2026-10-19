@@ -26,7 +26,9 @@ def main():
                      '--property=Type=oneshot', '--property=TimeoutStartSec=60',
                      '--property=OOMPolicy=kill',
                      *('--property=' + k + '=' + v for k, v in limits.items()),
-                     sys.executable, '-c', 'x=bytearray(1024*1024*1024)')
+                     sys.executable, '-c',
+                     'x=bytearray(1024*1024*1024)\n'
+                     'for i in range(0,len(x),4096): x[i]=1')
         reason = run('systemctl', 'show', unit, '-p', 'Result', '--value').stdout.strip()
         if result.returncode == 0 or reason != 'oom-kill':
             raise AssertionError('Expected a contained OOM kill, got ' + reason + ': ' + result.stderr)
