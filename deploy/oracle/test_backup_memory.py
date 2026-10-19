@@ -19,6 +19,10 @@ def main():
                   if line.startswith(('MemoryHigh=', 'MemoryMax=', 'MemorySwapMax=')))
     if set(limits) != {'MemoryHigh', 'MemoryMax', 'MemorySwapMax'}:
         raise AssertionError('Backup memory limits are incomplete')
+    # Exercise the hard cap promptly. The production soft threshold deliberately
+    # throttles allocations and can prevent a test from reaching the OOM limit.
+    # Only this disposable probe omits that throttle; RAM/swap caps are unchanged.
+    limits['MemoryHigh'] = 'infinity'
     unit = 'acr-backup-memory-probe-' + uuid.uuid4().hex[:12]
     try:
         # Twice the hard limit, including touched pages; a healthy exit is a failure.
