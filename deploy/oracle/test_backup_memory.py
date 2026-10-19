@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Prove backup cgroup limits contain an oversized job on a disposable CI host."""
+"""Prove maintenance cgroup caps contain oversized jobs on a disposable CI host."""
 import os
 from pathlib import Path
 import subprocess
@@ -11,14 +11,12 @@ def run(*args):
     return subprocess.run(args, capture_output=True, text=True, timeout=90)
 
 
-def main():
-    if os.geteuid() != 0:
-        raise SystemExit('Run as root on a disposable systemd host')
-    source = (Path(__file__).parent / 'scheduled/acr-backup@.service').read_text()
+def exercise_limits(path):
+    source = path.read_text()
     limits = dict(line.split('=', 1) for line in source.splitlines()
                   if line.startswith(('MemoryHigh=', 'MemoryMax=', 'MemorySwapMax=')))
     if set(limits) != {'MemoryHigh', 'MemoryMax', 'MemorySwapMax'}:
-        raise AssertionError('Backup memory limits are incomplete')
+        raise AssertionError('Memory limits are incomplete: ' + path.name)
     # Exercise the hard cap promptly. The production soft threshold deliberately
     # throttles allocations and can prevent a test from reaching the OOM limit.
     # Only this disposable probe omits that throttle; RAM/swap caps are unchanged.
@@ -36,10 +34,18 @@ def main():
         reason = run('systemctl', 'show', unit, '-p', 'Result', '--value').stdout.strip()
         if result.returncode == 0 or reason != 'oom-kill':
             raise AssertionError('Expected a contained OOM kill, got ' + reason + ': ' + result.stderr)
-        print('Oversized backup job was killed within its own cgroup')
+        print(path.name + ': oversized job was killed within its own cgroup')
     finally:
         run('systemctl', 'stop', unit)
         run('systemctl', 'reset-failed', unit)
+
+
+def main():
+    if os.geteuid() != 0:
+        raise SystemExit('Run as root on a disposable systemd host')
+    root = Path(__file__).parent
+    for name in ('scheduled/acr-backup@.service', 'dnf-makecache-memory.conf'):
+        exercise_limits(root / name)
 
 
 if __name__ == '__main__':

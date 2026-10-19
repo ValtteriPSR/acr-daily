@@ -10,7 +10,8 @@ The first database/full upload and real restore must succeed before enabling
 timers. systemd Persistent=true catches up after downtime. Jobs serialize via
 flock, run at reduced CPU/I/O priority and do not restart the application.
 Each job has a 384 MiB soft memory threshold, a 512 MiB hard limit and
-at most 128 MiB swap. These cgroup limits include subprocesses. An oversized
+at most 128 MiB swap. These cgroup limits include host subprocesses; commands
+inside PostgreSQL's container use the container's own cgroup. An oversized
 job can fail without consuming all VM memory; its previous verified recovery
 copies remain available. The resource limit is also tested with an intentionally
 oversized disposable job in CI on both supported architectures.
