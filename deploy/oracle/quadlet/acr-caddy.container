@@ -1,6 +1,6 @@
 [Unit]
 Description=ACR Rally Club HTTPS gateway
-Requires=acr-app.service
+Wants=acr-app.service
 After=acr-app.service
 
 [Container]
