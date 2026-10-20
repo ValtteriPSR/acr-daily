@@ -434,6 +434,5 @@ def main(link=None):
             k32.ReleaseMutex(guard);k32.CloseHandle(guard)
     if window.restart_link:
         if window.worker.is_alive():raise RuntimeError('Nadzór nie zakończył się jeszcze. Ponownie kliknij RUN po zamknięciu starego launchera.')
-        import subprocess
-        command=[sys.executable,window.restart_link] if getattr(sys,'frozen',False) else [sys.executable,str(Path(__file__).resolve().parents[1]/'run_web_launcher.py'),window.restart_link]
-        subprocess.Popen(command)
+        from .launcher_process import start_independent
+        start_independent([window.restart_link])

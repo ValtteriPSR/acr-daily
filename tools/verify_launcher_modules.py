@@ -27,6 +27,8 @@ MODULES = (
     "club_local.checkpoint_restore",
     "club_local.web_launch",
     "club_local.launcher_control",
+    "club_local.launcher_process",
+    "club_local.restart_probe",
     "club_local.web_install",
     "club_local.version",
 )

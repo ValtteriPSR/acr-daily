@@ -6,6 +6,15 @@ on:
     paths: ['VERSION', '.github/workflows/launcher-release.yml']
     tags:
       - 'v*'
+  pull_request:
+    paths:
+      - 'client/**'
+      - 'tools/verify_launcher_modules.py'
+      - 'tools/test_frozen_restart.py'
+      - 'tests/test_launcher_restart.py'
+      - 'VERSION'
+      - 'RELEASE-MANIFEST.json'
+      - '.github/workflows/launcher-release.yml'
   workflow_dispatch:
     inputs:
       public_url:
@@ -46,13 +55,15 @@ jobs:
       - name: Configure release domain
         shell: pwsh
         env:
-          PUBLIC_URL: ${{ inputs.public_url || vars.ACR_CLUB_PUBLIC_URL }}
+          PUBLIC_URL: ${{ inputs.public_url }}
+          FALLBACK_PUBLIC_URL: ${{ vars.ACR_CLUB_PUBLIC_URL }}
         run: |
           if (-not $env:PUBLIC_URL) {
             $manifest = Get-Content RELEASE-MANIFEST.json -Raw | ConvertFrom-Json
             $env:PUBLIC_URL = $manifest.public_url
           }
-          if (-not $env:PUBLIC_URL) { throw 'Set ACR_CLUB_PUBLIC_URL or the release manifest public_url' }
+          if (-not $env:PUBLIC_URL) { $env:PUBLIC_URL = $env:FALLBACK_PUBLIC_URL }
+          if (-not $env:PUBLIC_URL) { throw 'Set the release manifest public_url or supply a workflow URL' }
           python tools/configure_public_launcher.py --url "$env:PUBLIC_URL"
           if ($LASTEXITCODE -ne 0) { throw 'Invalid public launcher URL' }
           "PUBLIC_URL=$env:PUBLIC_URL" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
@@ -79,6 +90,8 @@ jobs:
         run: |
           $process = Start-Process -FilePath (Resolve-Path 'dist/ACR-Rally-Club-Setup.exe') -ArgumentList '--self-test' -Wait -PassThru
           if ($process.ExitCode -ne 0) { throw "Frozen EXE import self-test failed with exit code $($process.ExitCode)" }
+      - name: Restart survives parent bootloader cleanup
+        run: python tools/test_frozen_restart.py dist/ACR-Rally-Club-Setup.exe
       - name: SHA256 checksum
         shell: pwsh
         run: |
@@ -115,6 +128,7 @@ jobs:
             dist/*-Source.zip.sha256
             dist/release-metadata.json
       - uses: softprops/action-gh-release@v2
+        if: github.event_name != 'pull_request'
         with:
           tag_name: ${{ inputs.release_tag || (startsWith(github.ref, 'refs/tags/v') && github.ref_name) || format('v{0}', env.RELEASE_VERSION) }}
           target_commitish: ${{ github.sha }}
