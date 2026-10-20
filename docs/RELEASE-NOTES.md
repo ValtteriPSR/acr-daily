@@ -1,3 +1,11 @@
+## ACR Rally Club 0.2.17
+
+- Fix automatic RUN restarts of the Windows onefile launcher. The new process gets an independent PyInstaller runtime instead of reusing files removed when the old process exits; this addresses missing temporary base_library.zip errors reported as connection failures.
+- Validate the built EXE on Windows: restart through the production helper, wait for the original bootloader and extraction to disappear, then import HTTPS dependencies and read the child's bundled standard library.
+- Keep TLS certificate verification, RUN ticket handling, save protections and stage/attempt rules unchanged.
+- Close the game and all old launcher windows, then install the new EXE once. No Python installation or reset of game settings is required.
+- Release domain: https://acr.projectsimracing.pl.
+
 ## ACR Rally Club 0.2.16
 
 - Clarify the breaks-allowed condition: exiting at service or before the SS clock starts is permitted.

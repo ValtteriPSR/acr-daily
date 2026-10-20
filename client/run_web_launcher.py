@@ -24,7 +24,16 @@ def self_test():
 
 
 if __name__ == '__main__':
-    if len(sys.argv) == 2 and sys.argv[1] == '--self-test':
+    if len(sys.argv) == 3 and sys.argv[1] in ('--self-test-restart-parent', '--self-test-restart-child'):
+        from club_local import restart_probe
+        operation = restart_probe.parent if sys.argv[1].endswith('-parent') else restart_probe.child
+        try:
+            sys.exit(operation(sys.argv[2]))
+        except Exception:
+            import traceback
+            traceback.print_exc()
+            sys.exit(1)
+    elif len(sys.argv) == 2 and sys.argv[1] == '--self-test':
         try:
             sys.exit(self_test())
         except Exception:
