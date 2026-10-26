@@ -1,0 +1,24 @@
+name: Public HTTPS compatibility
+on:
+  workflow_dispatch:
+  push:
+    branches: ['ops/tls-compat-*']
+    paths: ['tools/check_public_tls.py', '.github/workflows/public-tls-check.yml', 'deploy/Caddyfile']
+  pull_request:
+    paths: ['tools/check_public_tls.py', '.github/workflows/public-tls-check.yml', 'deploy/Caddyfile']
+permissions:
+  contents: read
+jobs:
+  public-tls:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Verify real HTTPS with normal and stale-intermediate trust stores
+        run: python tools/check_public_tls.py --check-legacy-x2

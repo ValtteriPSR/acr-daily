@@ -1,4 +1,9 @@
 {$CLUB_DOMAIN} {
+    # RSA avoids the X2 cross-sign path cached as expired on some Windows PCs.
+    tls {
+        key_type rsa2048
+    }
+
     encode zstd gzip
 
     # Independent HTTP basic auth on top of the in-app administrator key.
