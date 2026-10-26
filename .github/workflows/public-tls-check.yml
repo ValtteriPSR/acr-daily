@@ -2,7 +2,7 @@ name: Public HTTPS compatibility
 on:
   workflow_dispatch:
   push:
-    branches: ['ops/tls-compat-*']
+    branches: ['rally-club', 'ops/tls-compat-*']
     paths: ['tools/check_public_tls.py', '.github/workflows/public-tls-check.yml', 'deploy/Caddyfile']
   pull_request:
     paths: ['tools/check_public_tls.py', '.github/workflows/public-tls-check.yml', 'deploy/Caddyfile']
